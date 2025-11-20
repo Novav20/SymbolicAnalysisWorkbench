@@ -9,6 +9,15 @@
 namespace SymbolicCore {
 
 /**
+ * @enum JointType
+ * @brief Type of robotic joint
+ */
+enum class JointType {
+    Revolute,
+    Prismatic
+};
+
+/**
  * @struct DHParameters
  * @brief Symbolic representation of Denavit-Hartenberg parameters
  */
@@ -17,17 +26,19 @@ struct DHParameters {
     SymbolicScalar d;      // Link offset
     SymbolicScalar a;      // Link length
     SymbolicScalar alpha;  // Link twist
+    JointType type;        // Joint type (Revolute or Prismatic)
 
     DHParameters(const SymbolicScalar& theta_val,
                  const SymbolicScalar& d_val,
                  const SymbolicScalar& a_val,
-                 const SymbolicScalar& alpha_val);
+                 const SymbolicScalar& alpha_val,
+                 JointType type_val = JointType::Revolute);
 
     // Convenience constructors
-    static DHParameters withConstants(double theta_val, double d_val, double a_val, double alpha_val);
+    static DHParameters withConstants(double theta_val, double d_val, double a_val, double alpha_val, JointType type_val = JointType::Revolute);
     static DHParameters withVariables(const std::string& theta_name, const std::string& d_name, 
-                                     const std::string& a_name, const std::string& alpha_name);
-    static DHParameters mixed(const std::string& theta_name, double d_val, double a_val, double alpha_val);
+                                     const std::string& a_name, const std::string& alpha_name, JointType type_val = JointType::Revolute);
+    static DHParameters mixed(const std::string& theta_name, double d_val, double a_val, double alpha_val, JointType type_val = JointType::Revolute);
 };
 
 /**

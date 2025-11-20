@@ -125,13 +125,13 @@ void DHParameterWidget::setupParametersTab()
     dh_table_layout_ = new QVBoxLayout(dh_table_group_);
     
     dh_table_scroll_ = new QScrollArea(dh_table_group_);
-    dh_parameter_table_ = new QTableWidget(0, 4, dh_table_scroll_);
+    dh_parameter_table_ = new QTableWidget(0, 5, dh_table_scroll_);
     dh_table_scroll_->setWidget(dh_parameter_table_);
     dh_table_scroll_->setWidgetResizable(true);
     
     // Setup table headers
     QStringList headers;
-    headers << "θ (theta)" << "d" << "a" << "α (alpha)";
+    headers << "Type" << "θ (theta)" << "d" << "a" << "α (alpha)";
     dh_parameter_table_->setHorizontalHeaderLabels(headers);
     dh_parameter_table_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     
@@ -322,15 +322,20 @@ void DHParameterWidget::onAddJoint()
     dh_parameter_table_->setRowCount(current_row + 1);
     
     // Initialize with default values
-    auto theta_item = new QTableWidgetItem("θ" + QString::number(current_row));
+    // Initialize with default values
+    auto type_combo = new QComboBox();
+    type_combo->addItems({"Revolute", "Prismatic"});
+    
+    auto theta_item = new QTableWidgetItem("θ" + QString::number(current_row + 1));
     auto d_item = new QTableWidgetItem("0");
     auto a_item = new QTableWidgetItem("1");
     auto alpha_item = new QTableWidgetItem("0");
     
-    dh_parameter_table_->setItem(current_row, 0, theta_item);
-    dh_parameter_table_->setItem(current_row, 1, d_item);
-    dh_parameter_table_->setItem(current_row, 2, a_item);
-    dh_parameter_table_->setItem(current_row, 3, alpha_item);
+    dh_parameter_table_->setCellWidget(current_row, 0, type_combo);
+    dh_parameter_table_->setItem(current_row, 1, theta_item);
+    dh_parameter_table_->setItem(current_row, 2, d_item);
+    dh_parameter_table_->setItem(current_row, 3, a_item);
+    dh_parameter_table_->setItem(current_row, 4, alpha_item);
     
     updateJointCount();
     parameters_modified_ = true;
@@ -457,15 +462,15 @@ void DHParameterWidget::applyPreset(const QString& preset_name)
         onAddJoint();
         
         // Set parameters
-        dh_parameter_table_->item(0, 0)->setText("θ1");
-        dh_parameter_table_->item(0, 1)->setText("0");
-        dh_parameter_table_->item(0, 2)->setText("1");
-        dh_parameter_table_->item(0, 3)->setText("0");
+        dh_parameter_table_->item(0, 1)->setText("θ1");
+        dh_parameter_table_->item(0, 2)->setText("0");
+        dh_parameter_table_->item(0, 3)->setText("1");
+        dh_parameter_table_->item(0, 4)->setText("0");
         
-        dh_parameter_table_->item(1, 0)->setText("θ2");
-        dh_parameter_table_->item(1, 1)->setText("0");
-        dh_parameter_table_->item(1, 2)->setText("1");
-        dh_parameter_table_->item(1, 3)->setText("0");
+        dh_parameter_table_->item(1, 1)->setText("θ2");
+        dh_parameter_table_->item(1, 2)->setText("0");
+        dh_parameter_table_->item(1, 3)->setText("1");
+        dh_parameter_table_->item(1, 4)->setText("0");
         
     } else if (preset_name == "SCARA Robot") {
         // Add 4 joints for SCARA
@@ -475,25 +480,29 @@ void DHParameterWidget::applyPreset(const QString& preset_name)
         onAddJoint();
         
         // Set typical SCARA parameters
-        dh_parameter_table_->item(0, 0)->setText("θ1");
-        dh_parameter_table_->item(0, 1)->setText("0");
-        dh_parameter_table_->item(0, 2)->setText("a1");
-        dh_parameter_table_->item(0, 3)->setText("0");
+        dh_parameter_table_->item(0, 1)->setText("θ1");
+        dh_parameter_table_->item(0, 2)->setText("0");
+        dh_parameter_table_->item(0, 3)->setText("a1");
+        dh_parameter_table_->item(0, 4)->setText("0");
         
-        dh_parameter_table_->item(1, 0)->setText("θ2");
-        dh_parameter_table_->item(1, 1)->setText("0");
-        dh_parameter_table_->item(1, 2)->setText("a2");
-        dh_parameter_table_->item(1, 3)->setText("0");
+        dh_parameter_table_->item(1, 1)->setText("θ2");
+        dh_parameter_table_->item(1, 2)->setText("0");
+        dh_parameter_table_->item(1, 3)->setText("a2");
+        dh_parameter_table_->item(1, 4)->setText("0");
         
-        dh_parameter_table_->item(2, 0)->setText("0");
-        dh_parameter_table_->item(2, 1)->setText("d3");
-        dh_parameter_table_->item(2, 2)->setText("0");
+        // Joint 3 is Prismatic
+        auto type_combo = qobject_cast<QComboBox*>(dh_parameter_table_->cellWidget(2, 0));
+        if (type_combo) type_combo->setCurrentIndex(1); // Prismatic
+        
+        dh_parameter_table_->item(2, 1)->setText("0");
+        dh_parameter_table_->item(2, 2)->setText("d3");
         dh_parameter_table_->item(2, 3)->setText("0");
+        dh_parameter_table_->item(2, 4)->setText("0");
         
-        dh_parameter_table_->item(3, 0)->setText("θ4");
-        dh_parameter_table_->item(3, 1)->setText("0");
+        dh_parameter_table_->item(3, 1)->setText("θ4");
         dh_parameter_table_->item(3, 2)->setText("0");
         dh_parameter_table_->item(3, 3)->setText("0");
+        dh_parameter_table_->item(3, 4)->setText("0");
         
     } else if (preset_name == "PUMA 560") {
         // Add 6 joints for PUMA 560
@@ -502,35 +511,64 @@ void DHParameterWidget::applyPreset(const QString& preset_name)
         }
         
         // Set typical PUMA 560 parameters
-        dh_parameter_table_->item(0, 0)->setText("θ1");
-        dh_parameter_table_->item(0, 1)->setText("0");
+        dh_parameter_table_->item(0, 1)->setText("θ1");
         dh_parameter_table_->item(0, 2)->setText("0");
-        dh_parameter_table_->item(0, 3)->setText("-π/2");
+        dh_parameter_table_->item(0, 3)->setText("0");
+        dh_parameter_table_->item(0, 4)->setText("-π/2");
         
-        dh_parameter_table_->item(1, 0)->setText("θ2");
-        dh_parameter_table_->item(1, 1)->setText("0");
-        dh_parameter_table_->item(1, 2)->setText("a2");
-        dh_parameter_table_->item(1, 3)->setText("0");
+        dh_parameter_table_->item(1, 1)->setText("θ2");
+        dh_parameter_table_->item(1, 2)->setText("0");
+        dh_parameter_table_->item(1, 3)->setText("a2");
+        dh_parameter_table_->item(1, 4)->setText("0");
         
-        dh_parameter_table_->item(2, 0)->setText("θ3");
-        dh_parameter_table_->item(2, 1)->setText("d3");
-        dh_parameter_table_->item(2, 2)->setText("a3");
-        dh_parameter_table_->item(2, 3)->setText("0");
+        dh_parameter_table_->item(2, 1)->setText("θ3");
+        dh_parameter_table_->item(2, 2)->setText("d3");
+        dh_parameter_table_->item(2, 3)->setText("a3");
+        dh_parameter_table_->item(2, 4)->setText("0");
         
-        dh_parameter_table_->item(3, 0)->setText("θ4");
-        dh_parameter_table_->item(3, 1)->setText("d4");
-        dh_parameter_table_->item(3, 2)->setText("0");
-        dh_parameter_table_->item(3, 3)->setText("-π/2");
+        dh_parameter_table_->item(3, 1)->setText("θ4");
+        dh_parameter_table_->item(3, 2)->setText("d4");
+        dh_parameter_table_->item(3, 3)->setText("0");
+        dh_parameter_table_->item(3, 4)->setText("-π/2");
         
-        dh_parameter_table_->item(4, 0)->setText("θ5");
-        dh_parameter_table_->item(4, 1)->setText("0");
+        dh_parameter_table_->item(4, 1)->setText("θ5");
         dh_parameter_table_->item(4, 2)->setText("0");
-        dh_parameter_table_->item(4, 3)->setText("π/2");
+        dh_parameter_table_->item(4, 3)->setText("0");
+        dh_parameter_table_->item(4, 4)->setText("π/2");
         
-        dh_parameter_table_->item(5, 0)->setText("θ6");
-        dh_parameter_table_->item(5, 1)->setText("d6");
-        dh_parameter_table_->item(5, 2)->setText("0");
+        dh_parameter_table_->item(5, 1)->setText("θ6");
+        dh_parameter_table_->item(5, 2)->setText("d6");
         dh_parameter_table_->item(5, 3)->setText("0");
+        dh_parameter_table_->item(5, 4)->setText("0");
+    } else if (preset_name == "Stanford Arm") {
+         // Add 6 joints for Stanford Arm
+        for (int i = 0; i < 6; ++i) {
+            onAddJoint();
+        }
+        
+        // Joint 3 is Prismatic
+        auto type_combo = qobject_cast<QComboBox*>(dh_parameter_table_->cellWidget(2, 0));
+        if (type_combo) type_combo->setCurrentIndex(1); // Prismatic
+        
+        // Set parameters (placeholder values for now)
+        dh_parameter_table_->item(0, 1)->setText("θ1");
+        dh_parameter_table_->item(0, 4)->setText("-90");
+        
+        dh_parameter_table_->item(1, 1)->setText("θ2");
+        dh_parameter_table_->item(1, 2)->setText("d2");
+        dh_parameter_table_->item(1, 4)->setText("90");
+        
+        dh_parameter_table_->item(2, 1)->setText("0"); // Fixed theta
+        dh_parameter_table_->item(2, 2)->setText("d3"); // Variable d
+        
+        dh_parameter_table_->item(3, 1)->setText("θ4");
+        dh_parameter_table_->item(3, 4)->setText("-90");
+        
+        dh_parameter_table_->item(4, 1)->setText("θ5");
+        dh_parameter_table_->item(4, 4)->setText("90");
+        
+        dh_parameter_table_->item(5, 1)->setText("θ6");
+        dh_parameter_table_->item(5, 2)->setText("d6");
     }
     
     parameters_modified_ = true;
@@ -594,42 +632,31 @@ void DHParameterWidget::updateJointCount()
 
 
 SymbolicCore::DHParameters DHParameterWidget::getDHParametersFromRow(int row) const
-
 {
-
-    auto theta_item = dh_parameter_table_->item(row, 0);
-
-    auto d_item = dh_parameter_table_->item(row, 1);
-
-    auto a_item = dh_parameter_table_->item(row, 2);
-
-    auto alpha_item = dh_parameter_table_->item(row, 3);
-
+    auto type_combo = qobject_cast<QComboBox*>(dh_parameter_table_->cellWidget(row, 0));
+    SymbolicCore::JointType type = SymbolicCore::JointType::Revolute;
     
+    if (type_combo && type_combo->currentText() == "Prismatic") {
+        type = SymbolicCore::JointType::Prismatic;
+    }
 
+    auto theta_item = dh_parameter_table_->item(row, 1);
+    auto d_item = dh_parameter_table_->item(row, 2);
+    auto a_item = dh_parameter_table_->item(row, 3);
+    auto alpha_item = dh_parameter_table_->item(row, 4);
+    
     QString theta_text = theta_item ? theta_item->text().trimmed() : "0";
-
     QString d_text = d_item ? d_item->text().trimmed() : "0";
-
     QString a_text = a_item ? a_item->text().trimmed() : "0";
-
     QString alpha_text = alpha_item ? alpha_item->text().trimmed() : "0";
-
     
-
     // Parse as symbolic expressions
-
     auto theta = SymbolicCore::SymbolicScalar::parse(theta_text.toStdString());
-
     auto d = SymbolicCore::SymbolicScalar::parse(d_text.toStdString());
-
     auto a = SymbolicCore::SymbolicScalar::parse(a_text.toStdString());
-
     auto alpha = SymbolicCore::SymbolicScalar::parse(alpha_text.toStdString());
-
     
-
-    return SymbolicCore::DHParameters(theta, d, a, alpha);
+    return SymbolicCore::DHParameters(theta, d, a, alpha, type);
 
 }
 
@@ -658,26 +685,26 @@ std::vector<SymbolicCore::DHParameters> DHParameterWidget::getDHParametersFromTa
 
 
 void DHParameterWidget::setDHParametersToRow(int row, const SymbolicCore::DHParameters& params)
-
 {
+    auto type_combo = new QComboBox();
+    type_combo->addItems({"Revolute", "Prismatic"});
+    
+    if (params.type == SymbolicCore::JointType::Prismatic) {
+        type_combo->setCurrentIndex(1);
+    } else {
+        type_combo->setCurrentIndex(0);
+    }
 
     auto theta_item = new QTableWidgetItem(QString::fromStdString(params.theta.toString()));
-
     auto d_item = new QTableWidgetItem(QString::fromStdString(params.d.toString()));
-
     auto a_item = new QTableWidgetItem(QString::fromStdString(params.a.toString()));
-
     auto alpha_item = new QTableWidgetItem(QString::fromStdString(params.alpha.toString()));
-
     
-
-    dh_parameter_table_->setItem(row, 0, theta_item);
-
-    dh_parameter_table_->setItem(row, 1, d_item);
-
-    dh_parameter_table_->setItem(row, 2, a_item);
-
-    dh_parameter_table_->setItem(row, 3, alpha_item);
+    dh_parameter_table_->setCellWidget(row, 0, type_combo);
+    dh_parameter_table_->setItem(row, 1, theta_item);
+    dh_parameter_table_->setItem(row, 2, d_item);
+    dh_parameter_table_->setItem(row, 3, a_item);
+    dh_parameter_table_->setItem(row, 4, alpha_item);
 
 }
 

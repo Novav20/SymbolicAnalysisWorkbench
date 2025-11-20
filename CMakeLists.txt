@@ -36,55 +36,39 @@ set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.cache/fetchcontent" CACHE PATH "
 file(MAKE_DIRECTORY "${FETCHCONTENT_BASE_DIR}")
 
 # --- Fetch Eigen ---
+# --- Fetch Eigen ---
 FetchContent_Declare(
   eigen
   GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
   GIT_TAG 3.4.0
 )
-FetchContent_MakeAvailable(eigen)
+FetchContent_Populate(eigen)
+# Create our own simple INTERFACE target. We CANNOT use a "::" in the name.
+add_library(eigen_interface INTERFACE)
+target_include_directories(eigen_interface INTERFACE ${eigen_SOURCE_DIR})
 
-# --- Fetch ExprTk (Header-only symbolic math library) ---
-FetchContent_Declare(
-  exprtk
-  URL https://github.com/ArashPartow/exprtk/archive/refs/heads/master.zip
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(exprtk)
-
-# Create our own simple INTERFACE target.
-# Since we used MakeAvailable, Eigen's CMakeLists.txt is processed and defines Eigen3::Eigen.
-if(TARGET Eigen3::Eigen)
-    # Eigen3::Eigen might be an ALIAS itself, so we cannot ALIAS it again.
-    # Instead, create an interface library that links to it.
-    add_library(eigen_interface INTERFACE)
-    target_link_libraries(eigen_interface INTERFACE Eigen3::Eigen)
-else()
-    # Fallback in case the target isn't defined as expected
-    add_library(eigen_interface INTERFACE)
-    target_include_directories(eigen_interface INTERFACE ${eigen_SOURCE_DIR})
-endif()
-
-# --- GLM & GoogleTest (Well-Behaved Dependencies) ---
-# Temporarily disable GLM to avoid download issues
-# FetchContent_Declare(
-#     glm
-#     GIT_REPOSITORY https://github.com/g-truc/glm.git
-#     GIT_TAG        0.9.9.8
-# )
+# --- GoogleTest ---
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG        v1.14.0
 )
-
-# Prevent GoogleTest from building its own test samples
-set(INSTALL_GTEST OFF)
-set(FETCHCONTENT_ADD_SUBDIRECTORY_EXCLUDE_FROM_ALL TRUE)
-FetchContent_MakeAvailable(googletest)
+# Exclude from all to prevent installing
+FetchContent_GetProperties(googletest)
+if(NOT googletest_POPULATED)
+  FetchContent_Populate(googletest)
+  add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 # --- SymbolicCore Library ---
 add_subdirectory(src/SymbolicCore)
 
 # --- Application Executable ---
 add_subdirectory(src/app)
+
+# --- Tests ---
+add_subdirectory(tests)

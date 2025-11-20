@@ -8,34 +8,38 @@ namespace SymbolicCore {
 DHParameters::DHParameters(const SymbolicScalar& theta_val,
                           const SymbolicScalar& d_val,
                           const SymbolicScalar& a_val,
-                          const SymbolicScalar& alpha_val)
-    : theta(theta_val), d(d_val), a(a_val), alpha(alpha_val) {}
+                          const SymbolicScalar& alpha_val,
+                          JointType type_val)
+    : theta(theta_val), d(d_val), a(a_val), alpha(alpha_val), type(type_val) {}
 
-DHParameters DHParameters::withConstants(double theta_val, double d_val, double a_val, double alpha_val) {
+DHParameters DHParameters::withConstants(double theta_val, double d_val, double a_val, double alpha_val, JointType type_val) {
     return DHParameters(
         SymbolicScalar::constant(theta_val),
         SymbolicScalar::constant(d_val),
         SymbolicScalar::constant(a_val),
-        SymbolicScalar::constant(alpha_val)
+        SymbolicScalar::constant(alpha_val),
+        type_val
     );
 }
 
 DHParameters DHParameters::withVariables(const std::string& theta_name, const std::string& d_name,
-                                         const std::string& a_name, const std::string& alpha_name) {
+                                         const std::string& a_name, const std::string& alpha_name, JointType type_val) {
     return DHParameters(
         SymbolicScalar::variable(theta_name),
         SymbolicScalar::variable(d_name),
         SymbolicScalar::variable(a_name),
-        SymbolicScalar::variable(alpha_name)
+        SymbolicScalar::variable(alpha_name),
+        type_val
     );
 }
 
-DHParameters DHParameters::mixed(const std::string& theta_name, double d_val, double a_val, double alpha_val) {
+DHParameters DHParameters::mixed(const std::string& theta_name, double d_val, double a_val, double alpha_val, JointType type_val) {
     return DHParameters(
         SymbolicScalar::variable(theta_name),
         SymbolicScalar::constant(d_val),
         SymbolicScalar::constant(a_val),
-        SymbolicScalar::constant(alpha_val)
+        SymbolicScalar::constant(alpha_val),
+        type_val
     );
 }
 
@@ -137,12 +141,68 @@ SymbolicMatrix DHMatrixCalculator::extractOrientationEquations(const SymbolicMat
 }
 
 SymbolicMatrix DHMatrixCalculator::computeGeometricJacobian() const {
-    // Simplified Jacobian - returns 6xN matrix
     size_t n = num_joints_;
-    SymbolicMatrix jacobian(6, n, SymbolicScalar(0.0));
+    SymbolicMatrix jacobian(6, n);
     
-    // For full implementation, would compute derivatives of position and orientation
-    // This is a placeholder
+    // Compute cumulative transforms for all links (0 to N)
+    // T[i] is transform from base to frame i
+    std::vector<SymbolicMatrix> T;
+    T.reserve(n + 1);
+    T.push_back(SymbolicMatrix::identity(4)); // T0 (Base)
+    
+    for (size_t i = 1; i <= n; ++i) {
+        T.push_back(computeCumulativeTransform(i));
+    }
+    
+    // End effector position (p_e) is the position part of T[n]
+    SymbolicMatrix p_e = extractPositionEquations(T[n]); // 3x1 vector
+    
+    for (size_t i = 0; i < n; ++i) {
+        // For joint i+1 (which is index i in dh_parameters_), we need z_{i-1} and p_{i-1}
+        // z_{i-1} is the z-axis of frame i-1 (3rd column of T[i])
+        // p_{i-1} is the origin of frame i-1 (position part of T[i])
+        
+        SymbolicMatrix z_prev(3, 1);
+        z_prev(0, 0) = T[i].get(0, 2);
+        z_prev(1, 0) = T[i].get(1, 2);
+        z_prev(2, 0) = T[i].get(2, 2);
+        
+        SymbolicMatrix p_prev = extractPositionEquations(T[i]);
+        
+        if (dh_parameters_[i].type == JointType::Revolute) {
+            // J_v = z_{i-1} x (p_e - p_{i-1})
+            // J_w = z_{i-1}
+            
+            // Calculate p_e - p_{i-1}
+            SymbolicMatrix diff = p_e - p_prev;
+            
+            // Calculate cross product: z_prev x diff
+            SymbolicMatrix J_v(3, 1);
+            J_v(0, 0) = z_prev(1, 0) * diff(2, 0) - z_prev(2, 0) * diff(1, 0);
+            J_v(1, 0) = z_prev(2, 0) * diff(0, 0) - z_prev(0, 0) * diff(2, 0);
+            J_v(2, 0) = z_prev(0, 0) * diff(1, 0) - z_prev(1, 0) * diff(0, 0);
+            
+            // Fill Jacobian column i
+            jacobian(0, i) = J_v(0, 0);
+            jacobian(1, i) = J_v(1, 0);
+            jacobian(2, i) = J_v(2, 0);
+            jacobian(3, i) = z_prev(0, 0);
+            jacobian(4, i) = z_prev(1, 0);
+            jacobian(5, i) = z_prev(2, 0);
+            
+        } else { // Prismatic
+            // J_v = z_{i-1}
+            // J_w = 0
+            
+            jacobian(0, i) = z_prev(0, 0);
+            jacobian(1, i) = z_prev(1, 0);
+            jacobian(2, i) = z_prev(2, 0);
+            jacobian(3, i) = SymbolicScalar(0.0);
+            jacobian(4, i) = SymbolicScalar(0.0);
+            jacobian(5, i) = SymbolicScalar(0.0);
+        }
+    }
+    
     return jacobian;
 }
 
