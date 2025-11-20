@@ -30,7 +30,7 @@ A C++ desktop application for the symbolic kinematic analysis of robotic manipul
 
 1.  **Clone the repository:**
     ```bash
-    git clone [<repository-url>](https://github.com/Novav20/SymbolicAnalysisWorkbench.git)
+    git clone https://github.com/Novav20/SymbolicAnalysisWorkbench.git
     cd SymbolicAnalysisWorkbench
     ```
 
