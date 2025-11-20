@@ -1,0 +1,345 @@
+#include "MainWindow.h"
+#include "../widgets/MatrixInputWidget.h"
+#include "../widgets/SymbolicResultWidget.h"
+#include "../widgets/DHParameterWidget.h"
+#include "SymbolicCore/SymbolicMatrix.h"
+#include "SymbolicCore/DHMatrixCalculator.h"
+
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QApplication>
+#include <QtCore/QSettings>
+#include <QCloseEvent>
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+    , central_widget_(nullptr)
+    , main_layout_(nullptr)
+    , tab_widget_(nullptr)
+    , menu_bar_(nullptr)
+    , status_bar_(nullptr)
+    , status_label_(nullptr)
+    , matrix_size_label_(nullptr)
+    , project_modified_(false)
+{
+    setupUI();
+    setupMenus();
+    setupStatusBar();
+    connectSignals();
+    updateWindowTitle();
+}
+
+MainWindow::~MainWindow() = default;
+
+void MainWindow::setupUI()
+{
+    // Create central widget and layout
+    central_widget_ = new QWidget(this);
+    main_layout_ = new QVBoxLayout(central_widget_);
+    
+    // Create tab widget
+    tab_widget_ = new QTabWidget(this);
+    
+    // Create tab widgets
+    matrix_input_widget_ = std::make_unique<MatrixInputWidget>();
+    symbolic_result_widget_ = std::make_unique<SymbolicResultWidget>();
+    dh_parameter_widget_ = std::make_unique<DHParameterWidget>();
+    
+    // Add tabs
+    tab_widget_->addTab(matrix_input_widget_.get(), "Matrix Input");
+    tab_widget_->addTab(symbolic_result_widget_.get(), "Symbolic Results");
+    tab_widget_->addTab(dh_parameter_widget_.get(), "DH Parameters");
+    
+    // Add to layout
+    main_layout_->addWidget(tab_widget_);
+    
+    // Set central widget
+    setCentralWidget(central_widget_);
+    
+    // Set window properties
+    resize(1200, 800);
+    setMinimumSize(800, 600);
+}
+
+void MainWindow::setupMenus()
+{
+    // Create menu bar
+    menu_bar_ = menuBar();
+    
+    // File menu
+    auto file_menu = menu_bar_->addMenu("&File");
+    
+    new_action_ = file_menu->addAction("&New Project");
+    new_action_->setShortcut(QKeySequence::New);
+    new_action_->setStatusTip("Create a new symbolic analysis project");
+    connect(new_action_, &QAction::triggered, this, &MainWindow::newProject);
+    
+    open_action_ = file_menu->addAction("&Open Project");
+    open_action_->setShortcut(QKeySequence::Open);
+    open_action_->setStatusTip("Open an existing symbolic analysis project");
+    connect(open_action_, &QAction::triggered, this, &MainWindow::openProject);
+    
+    save_action_ = file_menu->addAction("&Save Project");
+    save_action_->setShortcut(QKeySequence::Save);
+    save_action_->setStatusTip("Save the current project");
+    connect(save_action_, &QAction::triggered, this, &MainWindow::saveProject);
+    
+    file_menu->addSeparator();
+    
+    export_latex_action_ = file_menu->addAction("Export to &LaTeX");
+    export_latex_action_->setStatusTip("Export symbolic results to LaTeX format");
+    connect(export_latex_action_, &QAction::triggered, this, &MainWindow::exportToLatex);
+    
+    export_python_action_ = file_menu->addAction("Export to &Python");
+    export_python_action_->setStatusTip("Export symbolic results to Python code");
+    connect(export_python_action_, &QAction::triggered, this, &MainWindow::exportToPython);
+    
+    file_menu->addSeparator();
+    
+    exit_action_ = file_menu->addAction("E&xit");
+    exit_action_->setShortcut(QKeySequence::Quit);
+    exit_action_->setStatusTip("Exit the application");
+    connect(exit_action_, &QAction::triggered, this, &QWidget::close);
+    
+    // Help menu
+    auto help_menu = menu_bar_->addMenu("&Help");
+    
+    about_action_ = help_menu->addAction("&About");
+    about_action_->setStatusTip("Show information about the application");
+    connect(about_action_, &QAction::triggered, this, &MainWindow::about);
+    
+    about_qt_action_ = help_menu->addAction("About &Qt");
+    about_qt_action_->setStatusTip("Show information about Qt");
+    connect(about_qt_action_, &QAction::triggered, &QApplication::aboutQt);
+}
+
+void MainWindow::setupStatusBar()
+{
+    status_bar_ = statusBar();
+    
+    status_label_ = new QLabel("Ready");
+    matrix_size_label_ = new QLabel("Matrix: N/A");
+    
+    status_bar_->addWidget(status_label_);
+    status_bar_->addPermanentWidget(matrix_size_label_);
+}
+
+void MainWindow::connectSignals()
+{
+    // Connect matrix computation signals
+    if (matrix_input_widget_) {
+        connect(matrix_input_widget_.get(), &MatrixInputWidget::matrixComputed,
+                symbolic_result_widget_.get(), &SymbolicResultWidget::displayMatrix);
+        connect(matrix_input_widget_.get(), &MatrixInputWidget::matrixComputed,
+                this, &MainWindow::onMatrixComputed);
+    }
+    
+    // Connect DH parameter updates
+    if (dh_parameter_widget_) {
+        connect(dh_parameter_widget_.get(), &DHParameterWidget::parametersUpdated,
+                this, &MainWindow::onDHParametersUpdated);
+        connect(dh_parameter_widget_.get(), &DHParameterWidget::forwardKinematicsComputed,
+                symbolic_result_widget_.get(), &SymbolicResultWidget::displayMatrix);
+        connect(dh_parameter_widget_.get(), &DHParameterWidget::jacobianComputed,
+                symbolic_result_widget_.get(), &SymbolicResultWidget::displayMatrix);
+    }
+    
+    // Connect error signals
+    if (matrix_input_widget_) {
+        connect(matrix_input_widget_.get(), &MatrixInputWidget::errorOccurred,
+                this, &MainWindow::onErrorOccurred);
+    }
+    if (dh_parameter_widget_) {
+        connect(dh_parameter_widget_.get(), &DHParameterWidget::errorOccurred,
+                this, &MainWindow::onErrorOccurred);
+    }
+    if (symbolic_result_widget_) {
+        connect(symbolic_result_widget_.get(), &SymbolicResultWidget::errorOccurred,
+                this, &MainWindow::onErrorOccurred);
+    }
+}
+
+void MainWindow::updateWindowTitle(const QString& projectPath)
+{
+    QString title = "Symbolic Analysis Workbench";
+    if (project_modified_) {
+        title += "*";
+    }
+    if (!projectPath.isEmpty()) {
+        title += " - " + projectPath;
+    }
+    setWindowTitle(title);
+}
+
+void MainWindow::newProject()
+{
+    if (project_modified_) {
+        auto reply = QMessageBox::question(this, "Unsaved Changes",
+                                          "The current project has unsaved changes. Do you want to save it?",
+                                          QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+        
+        if (reply == QMessageBox::Save) {
+            saveProject();
+        } else if (reply == QMessageBox::Cancel) {
+            return;
+        }
+    }
+    
+    // Reset all widgets
+    matrix_input_widget_->clear();
+    symbolic_result_widget_->clear();
+    dh_parameter_widget_->clear();
+    
+    current_project_path_.clear();
+    project_modified_ = false;
+    updateWindowTitle();
+    
+    status_label_->setText("New project created");
+}
+
+void MainWindow::openProject()
+{
+    if (project_modified_) {
+        auto reply = QMessageBox::question(this, "Unsaved Changes",
+                                          "The current project has unsaved changes. Do you want to save it?",
+                                          QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+        
+        if (reply == QMessageBox::Save) {
+            saveProject();
+        } else if (reply == QMessageBox::Cancel) {
+            return;
+        }
+    }
+    
+    QString fileName = QFileDialog::getOpenFileName(this,
+                                                    "Open Symbolic Analysis Project",
+                                                    "",
+                                                    "Symbolic Analysis Projects (*.saw);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        // TODO: Implement project loading
+        current_project_path_ = fileName;
+        project_modified_ = false;
+        updateWindowTitle(fileName);
+        status_label_->setText("Project loaded: " + fileName);
+    }
+}
+
+void MainWindow::onErrorOccurred(const QString& error)
+{
+    status_label_->setText("Error: " + error);
+    QMessageBox::warning(this, "Error", error);
+}
+
+void MainWindow::saveProject()
+{
+    if (current_project_path_.isEmpty()) {
+        QString fileName = QFileDialog::getSaveFileName(this,
+                                                        "Save Symbolic Analysis Project",
+                                                        "",
+                                                        "Symbolic Analysis Projects (*.saw);;All Files (*)");
+        
+        if (!fileName.isEmpty()) {
+            current_project_path_ = fileName;
+        } else {
+            return;
+        }
+    }
+    
+    // TODO: Implement project saving
+    project_modified_ = false;
+    updateWindowTitle(current_project_path_);
+    status_label_->setText("Project saved: " + current_project_path_);
+}
+
+void MainWindow::exportToLatex()
+{
+    QString fileName = QFileDialog::getSaveFileName(this,
+                                                    "Export to LaTeX",
+                                                    "",
+                                                    "LaTeX Files (*.tex);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        // TODO: Implement LaTeX export
+        status_label_->setText("Exported to LaTeX: " + fileName);
+    }
+}
+
+void MainWindow::exportToPython()
+{
+    QString fileName = QFileDialog::getSaveFileName(this,
+                                                    "Export to Python",
+                                                    "",
+                                                    "Python Files (*.py);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        // TODO: Implement Python export
+        status_label_->setText("Exported to Python: " + fileName);
+    }
+}
+
+void MainWindow::about()
+{
+    QMessageBox::about(this, "About Symbolic Analysis Workbench",
+                      "<h2>Symbolic Analysis Workbench</h2>"
+                      "<p>Version 1.0.0</p>"
+                      "<p>A symbolic mathematics tool for robotics analysis.</p>"
+                      "<p>Features:</p>"
+                      "<ul>"
+                      "<li>Symbolic matrix operations</li>"
+                      "<li>Denavit-Hartenberg parameter calculations</li>"
+                      "<li>Inverse kinematics assistance</li>"
+                      "<li>Export to LaTeX and Python</li>"
+                      "</ul>"
+                      "<p>© 2025 Robotics Research</p>");
+}
+
+void MainWindow::onMatrixComputed(const SymbolicCore::SymbolicMatrix& matrix)
+{
+    // Update symbolic results widget
+    symbolic_result_widget_->displayMatrix(matrix);
+    
+    // Update status
+    QString size_text = QString("Matrix: %1x%2").arg(matrix.rows()).arg(matrix.cols());
+    matrix_size_label_->setText(size_text);
+    
+    // Switch to results tab
+    tab_widget_->setCurrentIndex(1);
+    
+    // Mark project as modified
+    project_modified_ = true;
+    updateWindowTitle();
+    
+    status_label_->setText("Matrix computation completed");
+}
+
+void MainWindow::onDHParametersUpdated()
+{
+    // Mark project as modified
+    project_modified_ = true;
+    updateWindowTitle();
+    
+    status_label_->setText("DH parameters updated");
+}
+
+
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (project_modified_) {
+        auto reply = QMessageBox::question(this, "Unsaved Changes",
+                                          "The current project has unsaved changes. Do you want to save it?",
+                                          QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+        
+        if (reply == QMessageBox::Save) {
+            saveProject();
+            event->accept();
+        } else if (reply == QMessageBox::Discard) {
+            event->accept();
+        } else {
+            event->ignore();
+        }
+    } else {
+        event->accept();
+    }
+}

@@ -1,0 +1,15 @@
+# Test executable for SymbolicCore functionality
+add_executable(SymbolicWorkbenchTests
+    "main_test.cpp"
+    "symbolic_matrix_test.cpp"
+    "dh_matrix_test.cpp"
+    "matrix_operations_test.cpp"
+)
+
+target_link_libraries(SymbolicWorkbenchTests PRIVATE 
+    SymbolicCore 
+    gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(SymbolicWorkbenchTests)
