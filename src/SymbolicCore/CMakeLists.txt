@@ -14,7 +14,7 @@ target_include_directories(SymbolicCore PUBLIC
 )
 
 # Link against Eigen and ExprTk
-target_link_libraries(SymbolicCore PUBLIC eigen_interface exprtk_interface)
+target_link_libraries(SymbolicCore PUBLIC Eigen3::Eigen exprtk_interface)
 
 # Add /bigobj flag for MSVC to handle ExprTk's large templates
 if(MSVC)

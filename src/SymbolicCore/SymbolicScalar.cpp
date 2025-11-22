@@ -132,7 +132,27 @@ std::string SymbolicScalar::toString() const {
 std::string SymbolicScalar::toLatex() const {
     std::string latex = expression_;
     
-    // Convert sin, cos, tan to LaTeX format
+    // 1. Replace Greek letters and standard DH parameters with subscripts
+    // theta1 -> \theta_1, alpha2 -> \alpha_2, d3 -> d_3, a4 -> a_4
+    // We use a regex that looks for the name followed by digits
+    
+    // theta -> \theta
+    std::regex theta_regex("theta([0-9]+)");
+    latex = std::regex_replace(latex, theta_regex, "\\\\theta_{$1}");
+    
+    // alpha -> \alpha
+    std::regex alpha_regex("alpha([0-9]+)");
+    latex = std::regex_replace(latex, alpha_regex, "\\\\alpha_{$1}");
+    
+    // d -> d (just subscript)
+    std::regex d_regex("d([0-9]+)");
+    latex = std::regex_replace(latex, d_regex, "d_{$1}");
+    
+    // a -> a (just subscript)
+    std::regex a_regex("a([0-9]+)");
+    latex = std::regex_replace(latex, a_regex, "a_{$1}");
+    
+    // 2. Convert functions
     std::regex sin_regex("sin\\(([^)]*)\\)");
     latex = std::regex_replace(latex, sin_regex, "\\\\sin($1)");
     
@@ -142,12 +162,19 @@ std::string SymbolicScalar::toLatex() const {
     std::regex tan_regex("tan\\(([^)]*)\\)");
     latex = std::regex_replace(latex, tan_regex, "\\\\tan($1)");
     
-    // Replace * with \cdot for multiplication
-    std::regex mult_regex("\\*");
-    latex = std::regex_replace(latex, mult_regex, "\\\\cdot ");
+    std::regex sqrt_regex("sqrt\\(([^)]*)\\)");
+    latex = std::regex_replace(latex, sqrt_regex, "\\\\sqrt{$1}");
     
-    // Wrap in math mode
-    return "$" + latex + "$";
+    // 3. Operators
+    // Replace * with \cdot
+    std::regex mult_regex("\\*");
+    latex = std::regex_replace(latex, mult_regex, " \\\\cdot ");
+    
+    // 4. Cleanup
+    // Remove redundant parentheses around single terms if possible (simple heuristic)
+    // For now, we just return the string.
+    
+    return latex; // Note: We don't wrap in $...$ here, the widget will do that or the matrix will
 }
 
 // Static factory methods

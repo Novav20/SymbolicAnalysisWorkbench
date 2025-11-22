@@ -9,6 +9,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QSplitter>
+#include "LatexOutputWidget.h"
 #include <memory>
 
 namespace SymbolicCore {
@@ -78,6 +79,7 @@ private:
     // LaTeX display tab
     QWidget* latex_tab_;
     QVBoxLayout* latex_layout_;
+    LatexOutputWidget* latex_render_widget_;
     QTextEdit* latex_display_;
     QPushButton* copy_latex_btn_;
     

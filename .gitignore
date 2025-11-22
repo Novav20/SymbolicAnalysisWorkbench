@@ -55,6 +55,9 @@ Makefile
 # FetchContent dependencies cache
 .cache/
 
+# MicroTeX font resources (copied by CMake from FetchContent)
+resources/microtex/
+
 # IDE specific
 .idea/
 *.pro.user

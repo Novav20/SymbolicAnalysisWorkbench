@@ -27,6 +27,7 @@ SymbolicResultWidget::SymbolicResultWidget(QWidget *parent)
     , result_display_(nullptr)
     , latex_tab_(nullptr)
     , latex_layout_(nullptr)
+    , latex_render_widget_(nullptr)
     , latex_display_(nullptr)
     , copy_latex_btn_(nullptr)
     , numerical_tab_(nullptr)
@@ -121,9 +122,14 @@ void SymbolicResultWidget::setupLatexTab()
     latex_display_ = new QTextEdit();
     latex_display_->setReadOnly(true);
     latex_display_->setFont(QFont("Courier New", 10));
+    latex_display_->setMaximumHeight(100); // Reduce height to make room for render
+    
+    latex_render_widget_ = new LatexOutputWidget();
+    latex_render_widget_->setMinimumHeight(200);
     
     copy_latex_btn_ = new QPushButton("Copy LaTeX");
     
+    latex_layout_->addWidget(latex_render_widget_);
     latex_layout_->addWidget(latex_display_);
     latex_layout_->addWidget(copy_latex_btn_);
 }
@@ -454,7 +460,10 @@ void SymbolicResultWidget::updateLatexDisplay()
 {
     if (!current_matrix_) return;
     
-    latex_display_->setText(formatMatrixAsLatex(*current_matrix_));
+    QString latex = formatMatrixAsLatex(*current_matrix_);
+    latex_display_->setText(latex);
+    // Let QString handle the conversion to wstring properly
+    latex_render_widget_->setLatex(latex.toStdWString());
 }
 
 void SymbolicResultWidget::updateNumericalDisplay()
