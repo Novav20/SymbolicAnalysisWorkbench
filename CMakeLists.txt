@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(SymbolicAnalysisWorkbench VERSION 1.0.0 LANGUAGES CXX)
+project(SymbolicAnalyzerWorkbench VERSION 1.0.0 LANGUAGES CXX)
 
 enable_testing()
 
@@ -46,6 +46,17 @@ FetchContent_Populate(eigen)
 # Create our own simple INTERFACE target. We CANNOT use a "::" in the name.
 add_library(eigen_interface INTERFACE)
 target_include_directories(eigen_interface INTERFACE ${eigen_SOURCE_DIR})
+
+# --- Fetch ExprTk ---
+FetchContent_Declare(
+  exprtk
+  GIT_REPOSITORY https://github.com/ArashPartow/exprtk.git
+  GIT_TAG master
+)
+FetchContent_Populate(exprtk)
+# Create interface library for ExprTk
+add_library(exprtk_interface INTERFACE)
+target_include_directories(exprtk_interface INTERFACE ${exprtk_SOURCE_DIR})
 
 # --- GoogleTest ---
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)

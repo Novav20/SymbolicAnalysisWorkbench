@@ -6,7 +6,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     // Set application properties
-    app.setApplicationName("Symbolic Analysis Workbench");
+    app.setApplicationName("Symbolic Analyzer Workbench");
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("Robotics Research");
 

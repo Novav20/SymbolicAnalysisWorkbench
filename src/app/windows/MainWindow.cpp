@@ -161,7 +161,7 @@ void MainWindow::connectSignals()
 
 void MainWindow::updateWindowTitle(const QString& projectPath)
 {
-    QString title = "Symbolic Analysis Workbench";
+    QString title = "Symbolic Analyzer Workbench";
     if (project_modified_) {
         title += "*";
     }
@@ -212,9 +212,9 @@ void MainWindow::openProject()
     }
     
     QString fileName = QFileDialog::getOpenFileName(this,
-                                                    "Open Symbolic Analysis Project",
+                                                    "Open Symbolic Analyzer Project",
                                                     "",
-                                                    "Symbolic Analysis Projects (*.saw);;All Files (*)");
+                                                    "Symbolic Analyzer Projects (*.saw);;All Files (*)");
     
     if (!fileName.isEmpty()) {
         // TODO: Implement project loading
@@ -235,9 +235,9 @@ void MainWindow::saveProject()
 {
     if (current_project_path_.isEmpty()) {
         QString fileName = QFileDialog::getSaveFileName(this,
-                                                        "Save Symbolic Analysis Project",
+                                                        "Save Symbolic Analyzer Project",
                                                         "",
-                                                        "Symbolic Analysis Projects (*.saw);;All Files (*)");
+                                                        "Symbolic Analyzer Projects (*.saw);;All Files (*)");
         
         if (!fileName.isEmpty()) {
             current_project_path_ = fileName;
@@ -280,8 +280,8 @@ void MainWindow::exportToPython()
 
 void MainWindow::about()
 {
-    QMessageBox::about(this, "About Symbolic Analysis Workbench",
-                      "<h2>Symbolic Analysis Workbench</h2>"
+    QMessageBox::about(this, "About Symbolic Analyzer Workbench",
+                      "<h2>Symbolic Analyzer Workbench</h2>"
                       "<p>Version 1.0.0</p>"
                       "<p>A symbolic mathematics tool for robotics analysis.</p>"
                       "<p>Features:</p>"

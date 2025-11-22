@@ -1,4 +1,4 @@
-# Symbolic Analysis Workbench
+# Symbolic Analyzer Workbench
 
 A C++ desktop application for the symbolic kinematic analysis of robotic manipulators. Built with Qt and ExprTk, it features a custom symbolic engine to define Denavit-Hartenberg parameters, calculate Forward Kinematics matrices, and compute geometric Jacobians in real-time.
 
@@ -30,8 +30,8 @@ A C++ desktop application for the symbolic kinematic analysis of robotic manipul
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/Novav20/SymbolicAnalysisWorkbench.git
-    cd SymbolicAnalysisWorkbench
+    git clone https://github.com/Novav20/SymbolicAnalyzerWorkbench.git
+    cd SymbolicAnalyzerWorkbench
     ```
 
 2.  **Configure with CMake:**
@@ -46,7 +46,7 @@ A C++ desktop application for the symbolic kinematic analysis of robotic manipul
     ```
 
 4.  **Run:**
-    The executable will be located in `src/app/Release/SymbolicAnalysisWorkbench.exe` (on Windows).
+    The executable will be located in `src/app/Release/SymbolicAnalyzerWorkbench.exe` (on Windows).
 
 ## 📄 License
 

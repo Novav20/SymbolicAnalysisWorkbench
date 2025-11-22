@@ -11,11 +11,10 @@ add_library(SymbolicCore STATIC
 # Add include directories
 target_include_directories(SymbolicCore PUBLIC
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/.cache/fetchcontent/exprtk-src
 )
 
-# Link against Eigen (ExprTk is header-only)
-target_link_libraries(SymbolicCore PUBLIC eigen_interface)
+# Link against Eigen and ExprTk
+target_link_libraries(SymbolicCore PUBLIC eigen_interface exprtk_interface)
 
 # Add /bigobj flag for MSVC to handle ExprTk's large templates
 if(MSVC)
