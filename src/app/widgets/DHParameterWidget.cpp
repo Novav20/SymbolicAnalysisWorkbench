@@ -411,6 +411,25 @@ void DHParameterWidget::onComputeWorkspace()
 {
 }
 
+void DHParameterWidget::onComputeSingleTransform()
+{
+    // Same implementation as Forward Kinematics - compute end effector position
+    try {
+        auto params = getDHParametersFromTable();
+        dh_calculator_->setDHParameters(params);
+        
+        auto end_effector = dh_calculator_->computeEndEffectorPosition();
+        displayTransformationMatrix(end_effector);
+        
+        // Emit signal to show in right panel
+        emit forwardKinematicsComputed(end_effector);
+        emit parametersUpdated();
+        
+    } catch (const std::exception& e) {
+        emit errorOccurred(QString("Transform computation failed: %1").arg(e.what()));
+    }
+}
+
 void DHParameterWidget::displayWorkspaceInfo(const std::vector<std::vector<double>>& workspace)
 {
     QString result = "Workspace Analysis Results:\n\n";
@@ -817,34 +836,6 @@ void DHParameterWidget::onValidateParameters()
 {
 
     validateCurrentParameters();
-
-}
-
-
-
-void DHParameterWidget::onComputeSingleTransform()
-
-{
-
-    int current_row = dh_parameter_table_->currentRow();
-
-    if (current_row >= 0) {
-
-        try {
-
-            auto params = getDHParametersFromRow(current_row);
-
-            auto transform = dh_calculator_->computeTransformMatrix(params);
-
-            displayTransformationMatrix(transform);
-
-        } catch (const std::exception& e) {
-
-            emit errorOccurred(QString("Transform computation failed: %1").arg(e.what()));
-
-        }
-
-    }
 
 }
 

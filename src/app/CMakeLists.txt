@@ -3,7 +3,7 @@ add_executable(SymbolicAnalyzerWorkbench
   main.cpp
   "windows/MainWindow.h" "windows/MainWindow.cpp"
   "widgets/MatrixInputWidget.h" "widgets/MatrixInputWidget.cpp"
-  "widgets/SymbolicResultWidget.h" "widgets/SymbolicResultWidget.cpp"
+  "widgets/LiveResultPanel.h" "widgets/LiveResultPanel.cpp"
   "widgets/DHParameterWidget.h" "widgets/DHParameterWidget.cpp"
   "widgets/LatexOutputWidget.h" "widgets/LatexOutputWidget.cpp"
 )

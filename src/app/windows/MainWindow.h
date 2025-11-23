@@ -3,16 +3,18 @@
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QHBoxLayout>
-#include <QtWidgets/QTabWidget>
+#include <QtWidgets/QStackedWidget>
+#include <QtWidgets/QSplitter>
 #include <QtWidgets/QMenuBar>
 #include <QtWidgets/QStatusBar>
+#include <QtWidgets/QToolBar>
 #include <QAction>
 #include <QtWidgets/QTextEdit>
 #include <QtWidgets/QLabel>
 #include <memory>
 
 class MatrixInputWidget;
-class SymbolicResultWidget;
+class LiveResultPanel;
 class DHParameterWidget;
 
 namespace SymbolicCore {
@@ -25,8 +27,8 @@ namespace SymbolicCore {
  * @brief Main application window for Symbolic Analysis Workbench
  * 
  * This is the main GUI interface for the symbolic analysis workbench,
- * providing tabs for different types of symbolic computations relevant
- * to robotics analysis.
+ * providing a split-panel layout with input controls on the left and
+ * live LaTeX output on the right.
  */
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -45,6 +47,7 @@ private slots:
 private:
     void setupUI();
     void setupMenus();
+    void setupToolBar();
     void setupStatusBar();
     void connectSignals();
     void updateWindowTitle(const QString& projectPath = "");
@@ -52,12 +55,20 @@ private:
     // UI Components
     QWidget* central_widget_;
     QVBoxLayout* main_layout_;
-    QTabWidget* tab_widget_;
+    QSplitter* main_splitter_;
     
-    // Tab widgets
+    // Toolbar for input mode switching
+    QToolBar* mode_toolbar_;
+    QAction* matrix_mode_action_;
+    QAction* dh_mode_action_;
+    
+    // Left panel: Input widgets
+    QStackedWidget* input_stack_;
     std::unique_ptr<MatrixInputWidget> matrix_input_widget_;
-    std::unique_ptr<SymbolicResultWidget> symbolic_result_widget_;
     std::unique_ptr<DHParameterWidget> dh_parameter_widget_;
+    
+    // Right panel: Live result display
+    std::unique_ptr<LiveResultPanel> result_panel_;
     
     // Menu and status bar
     QMenuBar* menu_bar_;

@@ -1,6 +1,6 @@
 #include "MainWindow.h"
 #include "../widgets/MatrixInputWidget.h"
-#include "../widgets/SymbolicResultWidget.h"
+#include "../widgets/LiveResultPanel.h"
 #include "../widgets/DHParameterWidget.h"
 #include "SymbolicCore/SymbolicMatrix.h"
 #include "SymbolicCore/DHMatrixCalculator.h"
@@ -15,7 +15,11 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , central_widget_(nullptr)
     , main_layout_(nullptr)
-    , tab_widget_(nullptr)
+    , main_splitter_(nullptr)
+    , mode_toolbar_(nullptr)
+    , matrix_mode_action_(nullptr)
+    , dh_mode_action_(nullptr)
+    , input_stack_(nullptr)
     , menu_bar_(nullptr)
     , status_bar_(nullptr)
     , status_label_(nullptr)
@@ -24,6 +28,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setupUI();
     setupMenus();
+    setupToolBar();
     setupStatusBar();
     connectSignals();
     updateWindowTitle();
@@ -37,28 +42,41 @@ void MainWindow::setupUI()
     central_widget_ = new QWidget(this);
     main_layout_ = new QVBoxLayout(central_widget_);
     
-    // Create tab widget
-    tab_widget_ = new QTabWidget(this);
+    // Create main splitter (horizontal: left=input, right=output)
+    main_splitter_ = new QSplitter(Qt::Horizontal, this);
     
-    // Create tab widgets
+    // LEFT PANEL: Stacked widget for input modes
+    input_stack_ = new QStackedWidget();
+    
+    //Create input widgets
     matrix_input_widget_ = std::make_unique<MatrixInputWidget>();
-    symbolic_result_widget_ = std::make_unique<SymbolicResultWidget>();
     dh_parameter_widget_ = std::make_unique<DHParameterWidget>();
     
-    // Add tabs
-    tab_widget_->addTab(matrix_input_widget_.get(), "Matrix Input");
-    tab_widget_->addTab(symbolic_result_widget_.get(), "Symbolic Results");
-    tab_widget_->addTab(dh_parameter_widget_.get(), "DH Parameters");
+    // Add to stack (index 0 = Matrix, index 1 = DH)
+    input_stack_->addWidget(matrix_input_widget_.get());
+    input_stack_->addWidget(dh_parameter_widget_.get());
+    input_stack_->setCurrentIndex(0); // Default to Matrix Input
     
-    // Add to layout
-    main_layout_->addWidget(tab_widget_);
+    // RIGHT PANEL: Live result display
+    result_panel_ = std::make_unique<LiveResultPanel>();
+    
+    // Add panels to splitter
+    main_splitter_->addWidget(input_stack_);
+    main_splitter_->addWidget(result_panel_.get());
+    
+    // Set initial sizes (40% left, 60% right)
+    main_splitter_->setStretchFactor(0, 4);
+    main_splitter_->setStretchFactor(1, 6);
+    
+    // Add splitter to layout
+    main_layout_->addWidget(main_splitter_);
     
     // Set central widget
     setCentralWidget(central_widget_);
     
     // Set window properties
-    resize(1200, 800);
-    setMinimumSize(800, 600);
+    resize(1400, 900);
+    setMinimumSize(1000, 700);
 }
 
 void MainWindow::setupMenus()
@@ -113,6 +131,32 @@ void MainWindow::setupMenus()
     connect(about_qt_action_, &QAction::triggered, &QApplication::aboutQt);
 }
 
+void MainWindow::setupToolBar()
+{
+    // Create toolbar for switching input modes
+    mode_toolbar_ = addToolBar("Input Mode");
+    mode_toolbar_->setMovable(false);
+    
+    // Matrix Input mode action
+    matrix_mode_action_ = mode_toolbar_->addAction("📊 Matrix Input");
+    matrix_mode_action_->setCheckable(true);
+    matrix_mode_action_->setChecked(true);
+    connect(matrix_mode_action_, &QAction::triggered, [this]() {
+        input_stack_->setCurrentIndex(0);
+        matrix_mode_action_->setChecked(true);
+        dh_mode_action_->setChecked(false);
+    });
+    
+    // DH Parameters mode action
+    dh_mode_action_ = mode_toolbar_->addAction("🤖 DH Parameters");
+    dh_mode_action_->setCheckable(true);
+    connect(dh_mode_action_, &QAction::triggered, [this]() {
+        input_stack_->setCurrentIndex(1);
+        dh_mode_action_->setChecked(true);
+        matrix_mode_action_->setChecked(false);
+    });
+}
+
 void MainWindow::setupStatusBar()
 {
     status_bar_ = statusBar();
@@ -126,22 +170,22 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::connectSignals()
 {
-    // Connect matrix computation signals
+    // Connect matrix computation signals to LiveResultPanel
     if (matrix_input_widget_) {
         connect(matrix_input_widget_.get(), &MatrixInputWidget::matrixComputed,
-                symbolic_result_widget_.get(), &SymbolicResultWidget::displayMatrix);
+                result_panel_.get(), &LiveResultPanel::displayMatrix);
         connect(matrix_input_widget_.get(), &MatrixInputWidget::matrixComputed,
                 this, &MainWindow::onMatrixComputed);
     }
     
-    // Connect DH parameter updates
+    // Connect DH parameter updates to LiveResultPanel
     if (dh_parameter_widget_) {
         connect(dh_parameter_widget_.get(), &DHParameterWidget::parametersUpdated,
                 this, &MainWindow::onDHParametersUpdated);
         connect(dh_parameter_widget_.get(), &DHParameterWidget::forwardKinematicsComputed,
-                symbolic_result_widget_.get(), &SymbolicResultWidget::displayMatrix);
+                result_panel_.get(), &LiveResultPanel::displayMatrix);
         connect(dh_parameter_widget_.get(), &DHParameterWidget::jacobianComputed,
-                symbolic_result_widget_.get(), &SymbolicResultWidget::displayMatrix);
+                result_panel_.get(), &LiveResultPanel::displayMatrix);
     }
     
     // Connect error signals
@@ -153,8 +197,8 @@ void MainWindow::connectSignals()
         connect(dh_parameter_widget_.get(), &DHParameterWidget::errorOccurred,
                 this, &MainWindow::onErrorOccurred);
     }
-    if (symbolic_result_widget_) {
-        connect(symbolic_result_widget_.get(), &SymbolicResultWidget::errorOccurred,
+    if (result_panel_) {
+        connect(result_panel_.get(), &LiveResultPanel::errorOccurred,
                 this, &MainWindow::onErrorOccurred);
     }
 }
@@ -187,7 +231,7 @@ void MainWindow::newProject()
     
     // Reset all widgets
     matrix_input_widget_->clear();
-    symbolic_result_widget_->clear();
+    result_panel_->clear();
     dh_parameter_widget_->clear();
     
     current_project_path_.clear();
@@ -296,15 +340,9 @@ void MainWindow::about()
 
 void MainWindow::onMatrixComputed(const SymbolicCore::SymbolicMatrix& matrix)
 {
-    // Update symbolic results widget
-    symbolic_result_widget_->displayMatrix(matrix);
-    
     // Update status
     QString size_text = QString("Matrix: %1x%2").arg(matrix.rows()).arg(matrix.cols());
     matrix_size_label_->setText(size_text);
-    
-    // Switch to results tab
-    tab_widget_->setCurrentIndex(1);
     
     // Mark project as modified
     project_modified_ = true;
