@@ -2,157 +2,114 @@
 #include <stdexcept>
 #include <sstream>
 #include <iomanip>
+#include <symengine/add.h>
+#include <symengine/mul.h>
+#include <symengine/pow.h>
+#include <symengine/matrix.h>
 
 namespace SymbolicCore {
 
 // Constructors
-SymbolicMatrix::SymbolicMatrix() : rows_(0), cols_(0) {}
+SymbolicMatrix::SymbolicMatrix() 
+    : matrix_(0, 0) {}
 
 SymbolicMatrix::SymbolicMatrix(size_t rows, size_t cols)
-    : rows_(rows), cols_(cols), elements_(rows, std::vector<SymbolicScalar>(cols, SymbolicScalar(0.0))) {}
-
-SymbolicMatrix::SymbolicMatrix(size_t rows, size_t cols, const SymbolicScalar& init_value)
-    : rows_(rows), cols_(cols), elements_(rows, std::vector<SymbolicScalar>(cols, init_value)) {}
-
-SymbolicMatrix::SymbolicMatrix(const std::vector<std::vector<SymbolicScalar>>& elements)
-    : rows_(elements.size()), cols_(elements.empty() ? 0 : elements[0].size()), elements_(elements) {
-    // Validate that all rows have the same number of columns
-    for (const auto& row : elements_) {
-        if (row.size() != cols_) {
-            throw std::invalid_argument("All rows must have the same number of columns");
+    : matrix_(rows, cols) {
+    for (unsigned i = 0; i < rows; ++i) {
+        for (unsigned j = 0; j < cols; ++j) {
+            matrix_.set(i, j, SymEngine::real_double(0.0));
         }
     }
 }
 
+SymbolicMatrix::SymbolicMatrix(size_t rows, size_t cols, const SymbolicScalar& init_value)
+    : matrix_(rows, cols) {
+    for (unsigned i = 0; i < rows; ++i) {
+        for (unsigned j = 0; j < cols; ++j) {
+            matrix_.set(i, j, init_value.getExpression());
+        }
+    }
+}
+
+SymbolicMatrix::SymbolicMatrix(const std::vector<std::vector<SymbolicScalar>>& elements)
+    : matrix_(elements.size(), elements.empty() ? 0 : elements[0].size()) {
+    for (size_t i = 0; i < elements.size(); ++i) {
+        for (size_t j = 0; j < elements[i].size(); ++j) {
+            matrix_.set(i, j, elements[i][j].getExpression());
+        }
+    }
+}
+
+SymbolicMatrix::SymbolicMatrix(const SymEngine::DenseMatrix& matrix)
+    : matrix_(matrix) {}
+
 // Element access
-SymbolicScalar& SymbolicMatrix::operator()(size_t row, size_t col) {
-    validateDimensions(row, col);
-    return elements_[row][col];
-}
-
-const SymbolicScalar& SymbolicMatrix::operator()(size_t row, size_t col) const {
-    validateDimensions(row, col);
-    return elements_[row][col];
-}
-
 SymbolicScalar SymbolicMatrix::get(size_t row, size_t col) const {
-    validateDimensions(row, col);
-    return elements_[row][col];
+    if (row >= matrix_.nrows() || col >= matrix_.ncols()) {
+        throw std::out_of_range("Matrix index out of bounds");
+    }
+    return SymbolicScalar(matrix_.get(row, col));
 }
 
 void SymbolicMatrix::set(size_t row, size_t col, const SymbolicScalar& value) {
-    validateDimensions(row, col);
-    elements_[row][col] = value;
+    if (row >= matrix_.nrows() || col >= matrix_.ncols()) {
+        throw std::out_of_range("Matrix index out of bounds");
+    }
+    matrix_.set(row, col, value.getExpression());
 }
 
 // Matrix operations
 SymbolicMatrix SymbolicMatrix::operator+(const SymbolicMatrix& other) const {
-    if (rows_ != other.rows_ || cols_ != other.cols_) {
-        throw std::invalid_argument("Matrix dimensions must match for addition");
-    }
-    
-    SymbolicMatrix result(rows_, cols_);
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            result(i, j) = elements_[i][j] + other.elements_[i][j];
-        }
-    }
-    return result;
+    SymEngine::DenseMatrix result(matrix_.nrows(), matrix_.ncols());
+    matrix_.add_matrix(other.matrix_, result);
+    return SymbolicMatrix(result);
 }
 
 SymbolicMatrix SymbolicMatrix::operator-(const SymbolicMatrix& other) const {
-    if (rows_ != other.rows_ || cols_ != other.cols_) {
-        throw std::invalid_argument("Matrix dimensions must match for subtraction");
-    }
-    
-    SymbolicMatrix result(rows_, cols_);
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            result(i, j) = elements_[i][j] - other.elements_[i][j];
-        }
-    }
-    return result;
+    SymEngine::DenseMatrix result(matrix_.nrows(), matrix_.ncols());
+    // SymEngine doesn't have sub_dense_dense directly exposed in some versions, 
+    // but we can do A + (-1)*B
+    SymEngine::DenseMatrix neg_other(other.matrix_.nrows(), other.matrix_.ncols());
+    other.matrix_.mul_scalar(SymEngine::integer(-1), neg_other);
+    matrix_.add_matrix(neg_other, result);
+    return SymbolicMatrix(result);
 }
 
 SymbolicMatrix SymbolicMatrix::operator*(const SymbolicMatrix& other) const {
-    if (cols_ != other.rows_) {
-        throw std::invalid_argument("Inner matrix dimensions must match for multiplication");
-    }
-    
-    SymbolicMatrix result(rows_, other.cols_);
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < other.cols_; ++j) {
-            SymbolicScalar sum(0.0);
-            for (size_t k = 0; k < cols_; ++k) {
-                sum = sum + (elements_[i][k] * other.elements_[k][j]);
-            }
-            result(i, j) = sum;
-        }
-    }
-    return result;
+    SymEngine::DenseMatrix result(matrix_.nrows(), other.matrix_.ncols());
+    matrix_.mul_matrix(other.matrix_, result);
+    return SymbolicMatrix(result);
 }
 
 SymbolicMatrix SymbolicMatrix::operator*(const SymbolicScalar& scalar) const {
-    SymbolicMatrix result(rows_, cols_);
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            result(i, j) = elements_[i][j] * scalar;
-        }
-    }
-    return result;
+    SymEngine::DenseMatrix result(matrix_.nrows(), matrix_.ncols());
+    matrix_.mul_scalar(scalar.getExpression(), result);
+    return SymbolicMatrix(result);
 }
 
 // Matrix functions
 SymbolicMatrix SymbolicMatrix::transpose() const {
-    SymbolicMatrix result(cols_, rows_);
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            result(j, i) = elements_[i][j];
-        }
-    }
-    return result;
+    SymEngine::DenseMatrix result(matrix_.ncols(), matrix_.nrows());
+    matrix_.transpose(result);
+    return SymbolicMatrix(result);
 }
 
 SymbolicScalar SymbolicMatrix::determinant() const {
-    if (rows_ != cols_) {
-        throw std::invalid_argument("Determinant only defined for square matrices");
-    }
-    return computeDeterminant(*this);
+    return SymbolicScalar(matrix_.det());
 }
 
 SymbolicMatrix SymbolicMatrix::inverse() const {
-    if (rows_ != cols_) {
-        throw std::invalid_argument("Inverse only defined for square matrices");
-    }
-    
-    SymbolicScalar det = determinant();
-    SymbolicMatrix result(rows_, cols_);
-    
-    // Compute adjugate matrix (transpose of cofactor matrix)
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            SymbolicMatrix minor = computeMinor(i, j);
-            SymbolicScalar cofactor = minor.determinant();
-            
-            // Apply sign based on position
-            if ((i + j) % 2 == 1) {
-                cofactor = -cofactor;
-            }
-            
-            // Transpose indices for adjugate
-            result(j, i) = cofactor / det;
-        }
-    }
-    
-    return result;
+    SymEngine::DenseMatrix result(matrix_.nrows(), matrix_.ncols());
+    matrix_.inv(result);
+    return SymbolicMatrix(result);
 }
 
 bool SymbolicMatrix::isSymmetric() const {
-    if (rows_ != cols_) return false;
+    if (matrix_.nrows() != matrix_.ncols()) return false;
     
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = i + 1; j < cols_; ++j) {
-            if (elements_[i][j].toString() != elements_[j][i].toString()) {
+    for (unsigned i = 0; i < matrix_.nrows(); ++i) {
+        for (unsigned j = i + 1; j < matrix_.ncols(); ++j) {
+            if (!SymEngine::eq(*matrix_.get(i, j), *matrix_.get(j, i))) {
                 return false;
             }
         }
@@ -162,20 +119,36 @@ bool SymbolicMatrix::isSymmetric() const {
 
 // Evaluation
 Eigen::MatrixXd SymbolicMatrix::evaluateToEigen(const std::map<std::string, double>& variable_values) const {
-    Eigen::MatrixXd result(rows_, cols_);
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            result(i, j) = elements_[i][j].evaluate(variable_values);
+    Eigen::MatrixXd result(matrix_.nrows(), matrix_.ncols());
+    
+    SymEngine::map_basic_basic subs_map;
+    for (const auto& pair : variable_values) {
+        subs_map[SymEngine::symbol(pair.first)] = SymEngine::real_double(pair.second);
+    }
+    
+    for (unsigned i = 0; i < matrix_.nrows(); ++i) {
+        for (unsigned j = 0; j < matrix_.ncols(); ++j) {
+            auto elem = matrix_.get(i, j);
+            auto evaluated = elem->subs(subs_map);
+            result(i, j) = SymEngine::eval_double(*evaluated);
         }
     }
     return result;
 }
 
 std::vector<std::vector<double>> SymbolicMatrix::evaluate(const std::map<std::string, double>& variable_values) const {
-    std::vector<std::vector<double>> result(rows_, std::vector<double>(cols_));
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            result[i][j] = elements_[i][j].evaluate(variable_values);
+    std::vector<std::vector<double>> result(matrix_.nrows(), std::vector<double>(matrix_.ncols()));
+    
+    SymEngine::map_basic_basic subs_map;
+    for (const auto& pair : variable_values) {
+        subs_map[SymEngine::symbol(pair.first)] = SymEngine::real_double(pair.second);
+    }
+    
+    for (unsigned i = 0; i < matrix_.nrows(); ++i) {
+        for (unsigned j = 0; j < matrix_.ncols(); ++j) {
+            auto elem = matrix_.get(i, j);
+            auto evaluated = elem->subs(subs_map);
+            result[i][j] = SymEngine::eval_double(*evaluated);
         }
     }
     return result;
@@ -183,42 +156,29 @@ std::vector<std::vector<double>> SymbolicMatrix::evaluate(const std::map<std::st
 
 // Simplification
 SymbolicMatrix SymbolicMatrix::simplify() const {
-    SymbolicMatrix result(rows_, cols_);
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0; j < cols_; ++j) {
-            result(i, j) = elements_[i][j].simplify();
+    SymEngine::DenseMatrix result(matrix_.nrows(), matrix_.ncols());
+    for (unsigned i = 0; i < matrix_.nrows(); ++i) {
+        for (unsigned j = 0; j < matrix_.ncols(); ++j) {
+            result.set(i, j, SymEngine::expand(matrix_.get(i, j)));
         }
     }
-    return result;
+    return SymbolicMatrix(result);
 }
 
 // String representation
 std::string SymbolicMatrix::toString() const {
-    std::ostringstream oss;
-    oss << "[" << std::endl;
-    for (size_t i = 0; i < rows_; ++i) {
-        oss << "  [";
-        for (size_t j = 0; j < cols_; ++j) {
-            oss << elements_[i][j].toString();
-            if (j < cols_ - 1) oss << ", ";
-        }
-        oss << "]";
-        if (i < rows_ - 1) oss << ",";
-        oss << std::endl;
-    }
-    oss << "]";
-    return oss.str();
+    return matrix_.__str__();
 }
 
 std::string SymbolicMatrix::toLatex() const {
     std::ostringstream oss;
     oss << "\\begin{bmatrix}" << std::endl;
-    for (size_t i = 0; i < rows_; ++i) {
-        for (size_t j = 0;  j < cols_; ++j) {
-            oss << elements_[i][j].toLatex();
-            if (j < cols_ - 1) oss << " & ";
+    for (unsigned i = 0; i < matrix_.nrows(); ++i) {
+        for (unsigned j = 0;  j < matrix_.ncols(); ++j) {
+            oss << SymEngine::latex(*matrix_.get(i, j));
+            if (j < matrix_.ncols() - 1) oss << " & ";
         }
-        if (i < rows_ - 1) oss << " \\\\";
+        if (i < matrix_.nrows() - 1) oss << " \\\\";
         oss << std::endl;
     }
     oss << "\\end{bmatrix}";
@@ -227,19 +187,26 @@ std::string SymbolicMatrix::toLatex() const {
 
 // Static factory methods
 SymbolicMatrix SymbolicMatrix::identity(size_t size) {
-    SymbolicMatrix result(size, size, SymbolicScalar(0.0));
-    for (size_t i = 0; i < size; ++i) {
-        result(i, i) = SymbolicScalar(1.0);
-    }
-    return result;
+    SymEngine::DenseMatrix mat(size, size);
+    SymEngine::eye(mat);
+    return SymbolicMatrix(mat);
 }
 
 SymbolicMatrix SymbolicMatrix::zeros(size_t rows, size_t cols) {
-    return SymbolicMatrix(rows, cols, SymbolicScalar(0.0));
+    SymEngine::DenseMatrix mat(rows, cols);
+    SymEngine::zeros(mat);
+    return SymbolicMatrix(mat);
 }
 
 SymbolicMatrix SymbolicMatrix::ones(size_t rows, size_t cols) {
-    return SymbolicMatrix(rows, cols, SymbolicScalar(1.0));
+    SymEngine::DenseMatrix mat(rows, cols);
+    // SymEngine::ones_dense(mat); // If available, otherwise loop
+    for (unsigned i = 0; i < rows; ++i) {
+        for (unsigned j = 0; j < cols; ++j) {
+            mat.set(i, j, SymEngine::integer(1));
+        }
+    }
+    return SymbolicMatrix(mat);
 }
 
 // DH Transform matrix
@@ -249,91 +216,44 @@ SymbolicMatrix SymbolicMatrix::dhTransformMatrix(
     const SymbolicScalar& a,
     const SymbolicScalar& alpha
 ) {
-    SymbolicMatrix T(4, 4);
+    // Construct DH matrix using SymEngine expressions directly
+    // [ cos(theta), -sin(theta)*cos(alpha),  sin(theta)*sin(alpha), a*cos(theta) ]
+    // [ sin(theta),  cos(theta)*cos(alpha), -cos(theta)*sin(alpha), a*sin(theta) ]
+    // [          0,             sin(alpha),             cos(alpha),            d ]
+    // [          0,                      0,                      0,            1 ]
     
-    SymbolicScalar cos_theta = SymbolicScalar::cos(theta);
-    SymbolicScalar sin_theta = SymbolicScalar::sin(theta);
-    SymbolicScalar cos_alpha = SymbolicScalar::cos(alpha);
-    SymbolicScalar sin_alpha = SymbolicScalar::sin(alpha);
+    SymEngine::DenseMatrix T(4, 4);
+    
+    auto cos_theta = SymEngine::cos(theta.getExpression());
+    auto sin_theta = SymEngine::sin(theta.getExpression());
+    auto cos_alpha = SymEngine::cos(alpha.getExpression());
+    auto sin_alpha = SymEngine::sin(alpha.getExpression());
     
     // Row 0
-    T(0, 0) = cos_theta;
-    T(0, 1) = -sin_theta * cos_alpha;
-    T(0, 2) = sin_theta * sin_alpha;
-    T(0, 3) = a * cos_theta;
+    T.set(0, 0, cos_theta);
+    T.set(0, 1, SymEngine::mul(SymEngine::neg(sin_theta), cos_alpha));
+    T.set(0, 2, SymEngine::mul(sin_theta, sin_alpha));
+    T.set(0, 3, SymEngine::mul(a.getExpression(), cos_theta));
     
     // Row 1
-    T(1, 0) = sin_theta;
-    T(1, 1) = cos_theta * cos_alpha;
-    T(1, 2) = -cos_theta * sin_alpha;
-    T(1, 3) = a * sin_theta;
+    T.set(1, 0, sin_theta);
+    T.set(1, 1, SymEngine::mul(cos_theta, cos_alpha));
+    T.set(1, 2, SymEngine::mul(SymEngine::neg(cos_theta), sin_alpha));
+    T.set(1, 3, SymEngine::mul(a.getExpression(), sin_theta));
     
     // Row 2
-    T(2, 0) = SymbolicScalar(0.0);
-    T(2, 1) = sin_alpha;
-    T(2, 2) = cos_alpha;
-    T(2, 3) = d;
+    T.set(2, 0, SymEngine::integer(0));
+    T.set(2, 1, sin_alpha);
+    T.set(2, 2, cos_alpha);
+    T.set(2, 3, d.getExpression());
     
     // Row 3
-    T(3, 0) = SymbolicScalar(0.0);
-    T(3, 1) = SymbolicScalar(0.0);
-    T(3, 2) = SymbolicScalar(0.0);
-    T(3, 3) = SymbolicScalar(1.0);
+    T.set(3, 0, SymEngine::integer(0));
+    T.set(3, 1, SymEngine::integer(0));
+    T.set(3, 2, SymEngine::integer(0));
+    T.set(3, 3, SymEngine::integer(1));
     
-    return T;
-}
-
-// Helper methods
-void SymbolicMatrix::validateDimensions(size_t row, size_t col) const {
-    if (row >= rows_ || col >= cols_) {
-        throw std::out_of_range("Matrix index out of bounds");
-    }
-}
-
-SymbolicScalar SymbolicMatrix::computeDeterminant(const SymbolicMatrix& mat) const {
-    if (mat.rows_ == 1) {
-        return mat.elements_[0][0];
-    }
-    
-    if (mat.rows_ == 2) {
-        return mat.elements_[0][0] * mat.elements_[1][1] - 
-               mat.elements_[0][1] * mat.elements_[1][0];
-    }
-    
-    // Laplace expansion along first row
-    SymbolicScalar det(0.0);
-    for (size_t j = 0; j < mat.cols_; ++j) {
-        SymbolicMatrix minor = mat.computeMinor(0, j);
-        SymbolicScalar cofactor = mat.elements_[0][j] * computeDeterminant(minor);
-        
-        if (j % 2 == 0) {
-            det = det + cofactor;
-        } else {
-            det = det - cofactor;
-        }
-    }
-    
-    return det;
-}
-
-SymbolicMatrix SymbolicMatrix::computeMinor(size_t exclude_row, size_t exclude_col) const {
-    SymbolicMatrix minor(rows_ - 1, cols_ - 1);
-    
-    size_t minor_row = 0;
-    for (size_t i = 0; i < rows_; ++i) {
-        if (i == exclude_row) continue;
-        
-        size_t minor_col = 0;
-        for (size_t j = 0; j < cols_; ++j) {
-            if (j == exclude_col) continue;
-            
-            minor(minor_row, minor_col) = elements_[i][j];
-            ++minor_col;
-        }
-        ++minor_row;
-    }
-    
-    return minor;
+    return SymbolicMatrix(T);
 }
 
 } // namespace SymbolicCore

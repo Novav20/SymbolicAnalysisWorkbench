@@ -373,14 +373,14 @@ SymbolicCore::SymbolicMatrix MatrixInputWidget::createMatrixFromTable() const
             
             try {
                 auto scalar = SymbolicCore::SymbolicScalar::parse(text.toStdString());
-                matrix(i, j) = scalar;
+                matrix.set(i, j, scalar);
             } catch (...) {
                 bool ok;
                 double value = text.toDouble(&ok);
                 if (ok) {
-                    matrix(i, j) = SymbolicCore::SymbolicScalar::constant(value);
+                    matrix.set(i, j, SymbolicCore::SymbolicScalar::constant(value));
                 } else {
-                    matrix(i, j) = SymbolicCore::SymbolicScalar::variable(text.toStdString());
+                    matrix.set(i, j, SymbolicCore::SymbolicScalar::variable(text.toStdString()));
                 }
             }
         }

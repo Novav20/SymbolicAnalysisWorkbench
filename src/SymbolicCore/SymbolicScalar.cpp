@@ -1,185 +1,84 @@
 #include "SymbolicCore/SymbolicScalar.h"
-#include "exprtk.hpp"
-#include <regex>
-#include <algorithm>
-#include <cctype>
+#include <symengine/parser.h>
+#include <symengine/eval_double.h>
+#include <symengine/derivative.h>
+#include <symengine/simplify.h>
+#include <symengine/printers.h>
+#include <symengine/symbol.h>
+#include <symengine/real_double.h>
+#include <symengine/add.h>
+#include <symengine/mul.h>
+#include <symengine/pow.h>
+#include <symengine/functions.h>
 
 namespace SymbolicCore {
 
 // Constructors
-SymbolicScalar::SymbolicScalar() : expression_("0") {}
+SymbolicScalar::SymbolicScalar() 
+    : expression_(SymEngine::real_double(0.0)) {}
 
-SymbolicScalar::SymbolicScalar(const std::string& expr) : expression_(expr) {}
-
-SymbolicScalar::SymbolicScalar(double constant_value) {
-    std::ostringstream oss;
-    oss << constant_value;
-    expression_ = oss.str();
+SymbolicScalar::SymbolicScalar(const std::string& expr) {
+    try {
+        expression_ = SymEngine::parse(expr);
+    } catch (...) {
+        // Fallback or error handling
+        expression_ = SymEngine::real_double(0.0);
+    }
 }
 
-// Evaluation using ExprTk
+SymbolicScalar::SymbolicScalar(double constant_value) 
+    : expression_(SymEngine::real_double(constant_value)) {}
+
+SymbolicScalar::SymbolicScalar(const SymEngine::RCP<const SymEngine::Basic>& expr)
+    : expression_(expr) {}
+
+// Evaluation
 double SymbolicScalar::evaluate(const std::map<std::string, double>& variable_values) const {
-    typedef exprtk::symbol_table<double> symbol_table_t;
-    typedef exprtk::expression<double> expression_t;
-    typedef exprtk::parser<double> parser_t;
-    
-    symbol_table_t symbol_table;
-    expression_t expression;
-    parser_t parser;
-    
-    // Add variables to symbol table
-    std::map<std::string, double> vars = variable_values;
-    for (auto& pair : vars) {
-        symbol_table.add_variable(pair.first, pair.second);
+    SymEngine::map_basic_basic subs_map;
+    for (const auto& pair : variable_values) {
+        subs_map[SymEngine::symbol(pair.first)] = SymEngine::real_double(pair.second);
     }
     
-    expression.register_symbol_table(symbol_table);
-    
-    // Parse and evaluate
-    if (!parser.compile(expression_, expression)) {
-        // If parsing fails, try to evaluate as a constant
-        try {
-            return std::stod(expression_);
-        } catch (...) {
-            return 0.0; // Return 0 if can't parse
-        }
-    }
-    
-    return expression.value();
+    auto evaluated = expression_->subs(subs_map);
+    return SymEngine::eval_double(*evaluated);
 }
 
-// Derivative (symbolic differentiation - basic implementation)
+// Derivative
 std::shared_ptr<SymbolicScalar> SymbolicScalar::derivative(const std::string& variable) const {
-    // This is a simplified symbolic derivative
-    // For a production system, you'd implement proper differentiation rules
-    
-    std::string result;
-    
-    // Check if expression is just the variable
-    if (expression_ == variable) {
-        result = "1";
-    }
-    // Check if expression is a constant (no variables)
-    else if (getVariables().find(variable) == getVariables().end()) {
-        result = "0";
-   }
-    // Check for linear terms like "2*theta1" or "theta1*2"
-    else if (expression_.find(variable) != std::string::npos) {
-        // Simplified: For now, return derivative hint
-        result = "d(" + expression_ + ")/d(" + variable + ")";
-    }
-    else {
-        result = "0";
-    }
-    
-    return std::make_shared<SymbolicScalar>(result);
+    auto x = SymEngine::symbol(variable);
+    auto diff = expression_->diff(x);
+    return std::make_shared<SymbolicScalar>(diff);
 }
 
-// Simplification (basic)
+// Simplification
 SymbolicScalar SymbolicScalar::simplify() const {
-    // Basic simplifications
-    std::string simplified = expression_;
-    
-    // Remove double negatives
-    std::regex double_neg("--");
-    simplified = std::regex_replace(simplified, double_neg, "+");
-    
-    // Simplify + followed by +
-    std::regex double_plus("\\+\\+");
-    simplified = std::regex_replace(simplified, double_plus, "+");
-    
-    // Try to evaluate if it's a constant expression
-    if (getVariables().empty()) {
-        try {
-            double val = evaluate();
-            return SymbolicScalar(val);
-        } catch (...) {
-            // Can't evaluate, return as-is
-        }
-    }
-    
-    return SymbolicScalar(simplified);
+    // SymEngine automatically simplifies many things on construction
+    // But we can explicitly call expand() or other simplification methods
+    return SymbolicScalar(SymEngine::expand(expression_));
 }
 
-// Get all variables in the expression
+// Get variables
 std::set<std::string> SymbolicScalar::getVariables() const {
     std::set<std::string> variables;
-    
-    // Use regex to find variable names (alphanumeric sequences starting with letter)
-    std::regex var_regex("[a-zA-Z_][a-zA-Z0-9_]*");
-    std::sregex_iterator iter(expression_.begin(), expression_.end(), var_regex);
-    std::sregex_iterator end;
-    
-    // Known function names to exclude
-    std::set<std::string> functions = {"sin", "cos", "tan", "exp", "log", "sqrt", "abs", "pow"};
-    
-    while (iter != end) {
-        std::string var = iter->str();
-        if (functions.find(var) == functions.end()) {
-            variables.insert(var);
-        }
-        ++iter;
+    auto syms = SymEngine::free_symbols(*expression_);
+    for (const auto& sym : syms) {
+        variables.insert(sym->__str__());
     }
-    
     return variables;
 }
 
 // String representation
 std::string SymbolicScalar::toString() const {
-    return expression_;
+    return expression_->__str__();
 }
 
 std::string SymbolicScalar::toLatex() const {
-    std::string latex = expression_;
-    
-    // 1. Replace Greek letters and standard DH parameters with subscripts
-    // theta1 -> \theta_1, alpha2 -> \alpha_2, d3 -> d_3, a4 -> a_4
-    // We use a regex that looks for the name followed by digits
-    
-    // theta -> \theta
-    std::regex theta_regex("theta([0-9]+)");
-    latex = std::regex_replace(latex, theta_regex, "\\\\theta_{$1}");
-    
-    // alpha -> \alpha
-    std::regex alpha_regex("alpha([0-9]+)");
-    latex = std::regex_replace(latex, alpha_regex, "\\\\alpha_{$1}");
-    
-    // d -> d (just subscript)
-    std::regex d_regex("d([0-9]+)");
-    latex = std::regex_replace(latex, d_regex, "d_{$1}");
-    
-    // a -> a (just subscript)
-    std::regex a_regex("a([0-9]+)");
-    latex = std::regex_replace(latex, a_regex, "a_{$1}");
-    
-    // 2. Convert functions
-    std::regex sin_regex("sin\\(([^)]*)\\)");
-    latex = std::regex_replace(latex, sin_regex, "\\\\sin($1)");
-    
-    std::regex cos_regex("cos\\(([^)]*)\\)");
-    latex = std::regex_replace(latex, cos_regex, "\\\\cos($1)");
-    
-    std::regex tan_regex("tan\\(([^)]*)\\)");
-    latex = std::regex_replace(latex, tan_regex, "\\\\tan($1)");
-    
-    std::regex sqrt_regex("sqrt\\(([^)]*)\\)");
-    latex = std::regex_replace(latex, sqrt_regex, "\\\\sqrt{$1}");
-    
-    // 3. Operators
-    // Replace * with \cdot
-    std::regex mult_regex("\\*");
-    latex = std::regex_replace(latex, mult_regex, " \\\\cdot ");
-    
-    // 4. Cleanup
-    // Remove redundant parentheses around single terms if possible (simple heuristic)
-    // For now, we just return the string.
-    
-    return latex; // Note: We don't wrap in $...$ here, the widget will do that or the matrix will
+    return SymEngine::latex(*expression_);
 }
 
 // Static factory methods
 SymbolicScalar SymbolicScalar::variable(const std::string& name) {
-    return SymbolicScalar(name);
+    return SymbolicScalar(SymEngine::symbol(name));
 }
 
 SymbolicScalar SymbolicScalar::constant(double value) {
@@ -192,97 +91,79 @@ SymbolicScalar SymbolicScalar::parse(const std::string& expression) {
 
 // Trigonometric functions
 SymbolicScalar SymbolicScalar::sin(const SymbolicScalar& arg) {
-    return SymbolicScalar("sin(" + arg.expression_ + ")");
+    return SymbolicScalar(SymEngine::sin(arg.expression_));
 }
 
 SymbolicScalar SymbolicScalar::cos(const SymbolicScalar& arg) {
-    return SymbolicScalar("cos(" + arg.expression_ + ")");
+    return SymbolicScalar(SymEngine::cos(arg.expression_));
 }
 
 SymbolicScalar SymbolicScalar::tan(const SymbolicScalar& arg) {
-    return SymbolicScalar("tan(" + arg.expression_ + ")");
+    return SymbolicScalar(SymEngine::tan(arg.expression_));
 }
 
 // Mathematical functions
 SymbolicScalar SymbolicScalar::exp(const SymbolicScalar& arg) {
-    return SymbolicScalar("exp(" + arg.expression_ + ")");
+    return SymbolicScalar(SymEngine::exp(arg.expression_));
 }
 
 SymbolicScalar SymbolicScalar::log(const SymbolicScalar& arg) {
-    return SymbolicScalar("log(" + arg.expression_ + ")");
+    return SymbolicScalar(SymEngine::log(arg.expression_));
 }
 
 SymbolicScalar SymbolicScalar::sqrt(const SymbolicScalar& arg) {
-    return SymbolicScalar("sqrt(" + arg.expression_ + ")");
+    return SymbolicScalar(SymEngine::sqrt(arg.expression_));
 }
 
 SymbolicScalar SymbolicScalar::pow(const SymbolicScalar& base, const SymbolicScalar& exponent) {
-    return SymbolicScalar("pow(" + base.expression_ + "," + exponent.expression_ + ")");
-}
-
-// Helper methods
-std::string SymbolicScalar::wrapInParens(const std::string& expr) {
-    if (needsParens(expr)) {
-        return "(" + expr + ")";
-    }
-    return expr;
-}
-
-bool SymbolicScalar::needsParens(const std::string& expr) {
-    // Check if expression contains operators that would need parentheses
-    return expr.find('+') != std::string::npos || 
-           expr.find('-') != std::string::npos;
+    return SymbolicScalar(SymEngine::pow(base.expression_, exponent.expression_));
 }
 
 // Operator overloads
 SymbolicScalar SymbolicScalar::operator+(const SymbolicScalar& other) const {
-    return SymbolicScalar(expression_ + "+" + other.expression_);
+    return SymbolicScalar(SymEngine::add(expression_, other.expression_));
 }
 
 SymbolicScalar SymbolicScalar::operator-(const SymbolicScalar& other) const {
-    return SymbolicScalar(expression_ + "-" + wrapInParens(other.expression_));
+    return SymbolicScalar(SymEngine::sub(expression_, other.expression_));
 }
 
 SymbolicScalar SymbolicScalar::operator*(const SymbolicScalar& other) const {
-    std::string left = wrapInParens(expression_);
-    std::string right = wrapInParens(other.expression_);
-    return SymbolicScalar(left + "*" + right);
+    return SymbolicScalar(SymEngine::mul(expression_, other.expression_));
 }
 
 SymbolicScalar SymbolicScalar::operator/(const SymbolicScalar& other) const {
-    std::string left = wrapInParens(expression_);
-    std::string right = wrapInParens(other.expression_);
-    return SymbolicScalar(left + "/" + right);
+    return SymbolicScalar(SymEngine::div(expression_, other.expression_));
 }
 
 SymbolicScalar SymbolicScalar::operator-() const {
-    return SymbolicScalar("-" + wrapInParens(expression_));
+    return SymbolicScalar(SymEngine::neg(expression_));
 }
 
-// Compound assignment  
+// Compound assignment
 SymbolicScalar& SymbolicScalar::operator+=(const SymbolicScalar& other) {
-    *this = *this + other;
+    expression_ = SymEngine::add(expression_, other.expression_);
     return *this;
 }
 
 SymbolicScalar& SymbolicScalar::operator-=(const SymbolicScalar& other) {
-    *this = *this - other;
+    expression_ = SymEngine::sub(expression_, other.expression_);
     return *this;
 }
 
 SymbolicScalar& SymbolicScalar::operator*=(const SymbolicScalar& other) {
-    *this = *this * other;
+    expression_ = SymEngine::mul(expression_, other.expression_);
     return *this;
 }
 
 SymbolicScalar& SymbolicScalar::operator/=(const SymbolicScalar& other) {
-    *this = *this / other;
+    expression_ = SymEngine::div(expression_, other.expression_);
     return *this;
 }
 
 // Comparison
 bool SymbolicScalar::operator==(const SymbolicScalar& other) const {
-    return expression_ == other.expression_;
+    return SymEngine::eq(*expression_, *other.expression_);
 }
 
 bool SymbolicScalar::operator!=(const SymbolicScalar& other) const {

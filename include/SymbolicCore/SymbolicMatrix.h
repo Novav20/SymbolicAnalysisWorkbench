@@ -5,18 +5,17 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <symengine/matrix.h>
 
 namespace SymbolicCore {
 
 /**
  * @class SymbolicMatrix
- * @brief Symbolic matrix using SymbolicScalar elements.
+ * @brief Symbolic matrix using SymEngine backend.
  */
 class SymbolicMatrix {
 private:
-    size_t rows_;
-    size_t cols_;
-    std::vector<std::vector<SymbolicScalar>> elements_;
+    SymEngine::DenseMatrix matrix_;
 
 public:
     // Constructors
@@ -24,15 +23,13 @@ public:
     SymbolicMatrix(size_t rows, size_t cols);
     SymbolicMatrix(size_t rows, size_t cols, const SymbolicScalar& init_value);
     SymbolicMatrix(const std::vector<std::vector<SymbolicScalar>>& elements);
+    SymbolicMatrix(const SymEngine::DenseMatrix& matrix);
     
     // Dimensions
-    size_t rows() const { return rows_; }
-    size_t cols() const { return cols_; }
+    size_t rows() const { return matrix_.nrows(); }
+    size_t cols() const { return matrix_.ncols(); }
     
     // Element access
-    SymbolicScalar& operator()(size_t row, size_t col);
-    const SymbolicScalar& operator()(size_t row, size_t col) const;
-    
     SymbolicScalar get(size_t row, size_t col) const;
     void set(size_t row, size_t col, const SymbolicScalar& value);
     
@@ -49,7 +46,7 @@ public:
     bool isSymmetric() const;
     
     // Evaluation
-   Eigen::MatrixXd evaluateToEigen(const std::map<std::string, double>& variable_values = {}) const;
+    Eigen::MatrixXd evaluateToEigen(const std::map<std::string, double>& variable_values = {}) const;
     std::vector<std::vector<double>> evaluate(const std::map<std::string, double>& variable_values = {}) const;
     
     // Simplification
@@ -71,12 +68,6 @@ public:
         const SymbolicScalar& a,
         const SymbolicScalar& alpha
     );
-    
-private:
-    // Helper methods
-    void validateDimensions(size_t row, size_t col) const;
-    SymbolicScalar computeDeterminant(const SymbolicMatrix& mat) const;
-    SymbolicMatrix computeMinor(size_t row, size_t col) const;
 };
 
 } // namespace SymbolicCore

@@ -118,9 +118,9 @@ SymbolicMatrix DHMatrixCalculator::extractPositionEquations(const SymbolicMatrix
     }
     
     SymbolicMatrix position(3, 1);
-    position(0, 0) = end_effector_transform.get(0, 3);
-    position(1, 0) = end_effector_transform.get(1, 3);
-    position(2, 0) = end_effector_transform.get(2, 3);
+    position.set(0, 0, end_effector_transform.get(0, 3));
+    position.set(1, 0, end_effector_transform.get(1, 3));
+    position.set(2, 0, end_effector_transform.get(2, 3));
     
     return position;
 }
@@ -133,7 +133,7 @@ SymbolicMatrix DHMatrixCalculator::extractOrientationEquations(const SymbolicMat
     SymbolicMatrix rotation(3, 3);
     for (size_t i = 0; i < 3; ++i) {
         for (size_t j = 0; j < 3; ++j) {
-            rotation(i, j) = end_effector_transform.get(i, j);
+            rotation.set(i, j, end_effector_transform.get(i, j));
         }
     }
     
@@ -163,9 +163,9 @@ SymbolicMatrix DHMatrixCalculator::computeGeometricJacobian() const {
         // p_{i-1} is the origin of frame i-1 (position part of T[i])
         
         SymbolicMatrix z_prev(3, 1);
-        z_prev(0, 0) = T[i].get(0, 2);
-        z_prev(1, 0) = T[i].get(1, 2);
-        z_prev(2, 0) = T[i].get(2, 2);
+        z_prev.set(0, 0, T[i].get(0, 2));
+        z_prev.set(1, 0, T[i].get(1, 2));
+        z_prev.set(2, 0, T[i].get(2, 2));
         
         SymbolicMatrix p_prev = extractPositionEquations(T[i]);
         
@@ -178,28 +178,28 @@ SymbolicMatrix DHMatrixCalculator::computeGeometricJacobian() const {
             
             // Calculate cross product: z_prev x diff
             SymbolicMatrix J_v(3, 1);
-            J_v(0, 0) = z_prev(1, 0) * diff(2, 0) - z_prev(2, 0) * diff(1, 0);
-            J_v(1, 0) = z_prev(2, 0) * diff(0, 0) - z_prev(0, 0) * diff(2, 0);
-            J_v(2, 0) = z_prev(0, 0) * diff(1, 0) - z_prev(1, 0) * diff(0, 0);
+            J_v.set(0, 0, z_prev.get(1, 0) * diff.get(2, 0) - z_prev.get(2, 0) * diff.get(1, 0));
+            J_v.set(1, 0, z_prev.get(2, 0) * diff.get(0, 0) - z_prev.get(0, 0) * diff.get(2, 0));
+            J_v.set(2, 0, z_prev.get(0, 0) * diff.get(1, 0) - z_prev.get(1, 0) * diff.get(0, 0));
             
             // Fill Jacobian column i
-            jacobian(0, i) = J_v(0, 0);
-            jacobian(1, i) = J_v(1, 0);
-            jacobian(2, i) = J_v(2, 0);
-            jacobian(3, i) = z_prev(0, 0);
-            jacobian(4, i) = z_prev(1, 0);
-            jacobian(5, i) = z_prev(2, 0);
+            jacobian.set(0, i, J_v.get(0, 0));
+            jacobian.set(1, i, J_v.get(1, 0));
+            jacobian.set(2, i, J_v.get(2, 0));
+            jacobian.set(3, i, z_prev.get(0, 0));
+            jacobian.set(4, i, z_prev.get(1, 0));
+            jacobian.set(5, i, z_prev.get(2, 0));
             
         } else { // Prismatic
             // J_v = z_{i-1}
             // J_w = 0
             
-            jacobian(0, i) = z_prev(0, 0);
-            jacobian(1, i) = z_prev(1, 0);
-            jacobian(2, i) = z_prev(2, 0);
-            jacobian(3, i) = SymbolicScalar(0.0);
-            jacobian(4, i) = SymbolicScalar(0.0);
-            jacobian(5, i) = SymbolicScalar(0.0);
+            jacobian.set(0, i, z_prev.get(0, 0));
+            jacobian.set(1, i, z_prev.get(1, 0));
+            jacobian.set(2, i, z_prev.get(2, 0));
+            jacobian.set(3, i, SymbolicScalar(0.0));
+            jacobian.set(4, i, SymbolicScalar(0.0));
+            jacobian.set(5, i, SymbolicScalar(0.0));
         }
     }
     
@@ -231,7 +231,7 @@ SymbolicMatrix DHMatrixCalculator::differentiateTransform(size_t joint_index, co
     for (size_t i = 0; i < T.rows(); ++i) {
         for (size_t j = 0; j < T.cols(); ++j) {
             auto deriv = T.get(i, j).derivative(variable);
-            dT(i, j) = *deriv;
+            dT.set(i, j, *deriv);
         }
     }
     
@@ -245,7 +245,7 @@ SymbolicMatrix DHMatrixCalculator::differentiateEndEffectorPosition(const std::s
     for (size_t i = 0; i < end_effector.rows(); ++i) {
         for (size_t j = 0; j < end_effector.cols(); ++j) {
             auto deriv = end_effector.get(i, j).derivative(joint_variable);
-            d_end_effector(i, j) = *deriv;
+            d_end_effector.set(i, j, *deriv);
         }
     }
     
@@ -311,25 +311,25 @@ SymbolicMatrix DHMatrixCalculator::createModifiedDHTransform(
     SymbolicScalar sin_alpha = SymbolicScalar::sin(alpha);
     
     // Modified DH convention (Craig's notation)
-    T(0, 0) = cos_theta;
-    T(0, 1) = -sin_theta;
-    T(0, 2) = SymbolicScalar(0.0);
-    T(0, 3) = a;
+    T.set(0, 0, cos_theta);
+    T.set(0, 1, -sin_theta);
+    T.set(0, 2, SymbolicScalar(0.0));
+    T.set(0, 3, a);
     
-    T(1, 0) = sin_theta * cos_alpha;
-    T(1, 1) = cos_theta * cos_alpha;
-    T(1, 2) = -sin_alpha;
-    T(1, 3) = -d * sin_alpha;
+    T.set(1, 0, sin_theta * cos_alpha);
+    T.set(1, 1, cos_theta * cos_alpha);
+    T.set(1, 2, -sin_alpha);
+    T.set(1, 3, -d * sin_alpha);
     
-    T(2, 0) = sin_theta * sin_alpha;
-    T(2, 1) = cos_theta * sin_alpha;
-    T(2, 2) = cos_alpha;
-    T(2, 3) = d * cos_alpha;
+    T.set(2, 0, sin_theta * sin_alpha);
+    T.set(2, 1, cos_theta * sin_alpha);
+    T.set(2, 2, cos_alpha);
+    T.set(2, 3, d * cos_alpha);
     
-    T(3, 0) = SymbolicScalar(0.0);
-    T(3, 1) = SymbolicScalar(0.0);
-    T(3, 2) = SymbolicScalar(0.0);
-    T(3, 3) = SymbolicScalar(1.0);
+    T.set(3, 0, SymbolicScalar(0.0));
+    T.set(3, 1, SymbolicScalar(0.0));
+    T.set(3, 2, SymbolicScalar(0.0));
+    T.set(3, 3, SymbolicScalar(1.0));
     
     return T;
 }

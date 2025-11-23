@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # MSVC specific settings for exception handling
 if(MSVC)
-  add_compile_options(/EHsc)
+  add_compile_options(/EHsc /bigobj)
 endif()
 
 # --- Qt Configuration ---
@@ -51,15 +51,42 @@ if(NOT eigen_POPULATED)
   add_subdirectory(${eigen_SOURCE_DIR} ${eigen_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
-# --- Fetch ExprTk ---
+# --- Fetch Boost (Headers for SymEngine) ---
+# SymEngine with INTEGER_CLASS=boostmp needs Boost headers.
+# We use SourceForge which is a very reliable mirror.
 FetchContent_Declare(
-  exprtk
-  GIT_REPOSITORY https://github.com/ArashPartow/exprtk.git
-  GIT_TAG master
+  Boost
+  URL https://downloads.sourceforge.net/project/boost/boost/1.84.0/boost_1_84_0.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP ON
 )
-FetchContent_Populate(exprtk)
-add_library(exprtk_interface INTERFACE)
-target_include_directories(exprtk_interface INTERFACE ${exprtk_SOURCE_DIR})
+FetchContent_MakeAvailable(Boost)
+
+# Handle potential subdirectory in Boost archive (boost_1_84_0)
+if(EXISTS "${boost_SOURCE_DIR}/boost_1_84_0")
+  set(Boost_INCLUDE_DIR "${boost_SOURCE_DIR}/boost_1_84_0" CACHE PATH "" FORCE)
+else()
+  set(Boost_INCLUDE_DIR "${boost_SOURCE_DIR}" CACHE PATH "" FORCE)
+endif()
+
+include_directories(${Boost_INCLUDE_DIR})
+
+# --- Fetch SymEngine ---
+# Configure SymEngine to use Boost.Multiprecision (header-only)
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(SYMENGINE_USE_GMP OFF CACHE BOOL "" FORCE)
+set(SYMENGINE_USE_MPFR OFF CACHE BOOL "" FORCE)
+set(SYMENGINE_USE_MPC OFF CACHE BOOL "" FORCE)
+set(SYMENGINE_USE_PTHREAD OFF CACHE BOOL "" FORCE)
+set(INTEGER_CLASS "boostmp" CACHE STRING "" FORCE)
+set(WITH_SYMENGINE_THREAD_SAFE OFF CACHE BOOL "" FORCE) # Disable thread safety to avoid pthread dep
+
+FetchContent_Declare(
+  symengine
+  GIT_REPOSITORY https://github.com/symengine/symengine.git
+  GIT_TAG v0.11.2
+)
+FetchContent_MakeAvailable(symengine)
 
 # --- Fetch TinyXML2 ---
 set(tinyxml2_BUILD_TESTING OFF CACHE BOOL "" FORCE)

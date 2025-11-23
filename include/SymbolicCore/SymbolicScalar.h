@@ -5,30 +5,28 @@
 #include <vector>
 #include <map>
 #include <set>
-#include <sstream>
-#include <cmath>
+#include <symengine/expression.h>
+#include <symengine/basic.h>
 
 namespace SymbolicCore {
 
 /**
  * @class SymbolicScalar
- * @brief Symbolic scalar using string-based expression representation.
- * 
- * This implementation stores expressions as strings and provides
- * symbolic manipulation capabilities suitable for DH parameters.
+ * @brief Symbolic scalar using SymEngine backend.
  */
 class SymbolicScalar {
 private:
-    std::string expression_;  // Expression as string (e.g., "sin(theta1) + 2*d")
+    SymEngine::RCP<const SymEngine::Basic> expression_;
     
 public:
     // Constructors
     SymbolicScalar();
-    explicit SymbolicScalar(const std::string& expr);
+    explicit SymbolicScalar(const std::string& expr); // Parses string
     explicit SymbolicScalar(double constant_value);
+    explicit SymbolicScalar(const SymEngine::RCP<const SymEngine::Basic>& expr);
     
     // Accessors
-    std::string getExpression() const { return expression_; }
+    SymEngine::RCP<const SymEngine::Basic> getExpression() const { return expression_; }
     
     // Evaluation
     double evaluate(const std::map<std::string, double>& variable_values = {}) const;
@@ -44,7 +42,7 @@ public:
     std::string toString() const;
     std::string toLatex() const;
     
-    // Static factory methods for variables and functions
+    // Static factory methods
     static SymbolicScalar variable(const std::string& name);
     static SymbolicScalar constant(double value);
     static SymbolicScalar parse(const std::string& expression);
@@ -73,14 +71,9 @@ public:
     SymbolicScalar& operator*=(const SymbolicScalar& other);
     SymbolicScalar& operator/=(const SymbolicScalar& other);
     
-    // Comparison (for sorting/maps)
+    // Comparison
     bool operator==(const SymbolicScalar& other) const;
     bool operator!=(const SymbolicScalar& other) const;
-    
-private:
-    // Helper methods
-    static std::string wrapInParens(const std::string& expr);
-    static bool needsParens(const std::string& expr);
 };
 
 } // namespace SymbolicCore
