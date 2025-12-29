@@ -4,7 +4,7 @@ A C++ desktop application for the symbolic kinematic analysis of robotic manipul
 
 ## 🚀 Features
 
-*   **Symbolic Math Engine:** Powered by [ExprTk](https://github.com/ArashPartow/exprtk), allowing for fast and flexible symbolic expression parsing and evaluation without heavy external dependencies.
+*   **Symbolic Math Engine:** Powered by [SymEngine](https://github.com/symengine/symengine), a fast symbolic manipulation library.
 *   **DH Parameter Interface:** Intuitive table-based input for standard Denavit-Hartenberg parameters ($\theta$, $d$, $a$, $\alpha$).
 *   **Forward Kinematics:** Automatically computes symbolic transformation matrices for each link and the final end-effector pose.
 *   **Jacobian Analysis:** Calculates the symbolic geometric Jacobian matrix for velocity analysis.
@@ -16,15 +16,17 @@ A C++ desktop application for the symbolic kinematic analysis of robotic manipul
 *   **Language:** C++20
 *   **GUI Framework:** Qt 6.x (Widgets)
 *   **Build System:** CMake
-*   **Math Backend:** ExprTk (Header-only, fetched via CMake)
+*   **Math Backend:** SymEngine
+*   **Dependencies:** Boost, Eigen3, TinyXML2, MicroTeX
 *   **Testing:** GoogleTest
 
 ## 📦 Build Instructions
 
 ### Prerequisites
-*   C++20 compatible compiler (MSVC 2022 recommended on Windows)
-*   CMake 3.20 or higher
-*   Qt 6.x installed and configured
+*   **C++20 compatible compiler** (GCC on Linux, MSVC on Windows)
+*   **CMake 3.20+**
+*   **Conda Environment** (Recommended): We recommend using the `robodesigner_env` or similar containing:
+    *   `qt6-main`, `eigen`, `symengine`, `boost`, `tinyxml2`, `flint`, `gtest`
 
 ### Steps
 
@@ -36,17 +38,21 @@ A C++ desktop application for the symbolic kinematic analysis of robotic manipul
 
 2.  **Configure with CMake:**
     ```bash
-    cmake -S . -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.x.x/msvc2019_64"
+    # Activate your conda environment first
+    conda activate robodesigner_env
+    
+    cmake -S . -B build
     ```
-    *(Replace the Qt path with your actual installation path)*
 
 3.  **Build:**
     ```bash
-    cmake --build build --config Release
+    cmake --build build --parallel
     ```
 
 4.  **Run:**
-    The executable will be located in `src/app/Release/SymbolicAnalyzerWorkbench.exe` (on Windows).
+    ```bash
+    ./build/src/app/SymbolicAnalyzerWorkbench
+    ```
 
 ## 📄 License
 

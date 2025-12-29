@@ -6,7 +6,7 @@ add_executable(SymbolicWorkbenchTests
 
 target_link_libraries(SymbolicWorkbenchTests PRIVATE 
     SymbolicCore 
-    gtest_main
+    GTest::gtest_main
 )
 
 include(GoogleTest)
